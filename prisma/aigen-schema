@@ -1,0 +1,133 @@
+// ---------- ENUMS ----------
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+}
+
+enum DocType {
+  LICENSE
+  INSURANCE
+  ID
+  VEHICLE_REGISTRATION
+  OTHER
+}
+
+enum DocStatus {
+  UPLOADED
+  PROCESSING
+  PENDING_VERIFICATION
+  VERIFIED
+  EXPIRED
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+}
+
+// ---------- MODELS ----------
+model Tenant {
+  id            String   @id @default(uuid())
+  name          String
+  email         String?
+  phone         String?
+  stripeCustomerId String?
+  plan          String   // e.g. "Free", "Pro", "Enterprise"
+  aiCredits     Int      @default(1000)
+  aiUsed        Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  drivers       Driver[]
+  notifications Notification[]
+  documents     Document[]
+  usage         BillingUsage[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  email     String   @unique
+  password  String?
+  role      Role
+  name      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Driver {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  name       String
+  email      String?
+  phone      String?
+  externalId String?  // DSP internal driver code
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  documents  Document[]
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  driverId       String
+  driver         Driver   @relation(fields: [driverId], references: [id])
+  type           DocType
+  s3Key          String
+  status         DocStatus @default(UPLOADED)
+  expiryDate     DateTime?
+  uploadedById   String?
+  uploadedBy     User?     @relation(fields: [uploadedById], references: [id])
+  extractedMeta  Json?     // raw Textract data
+  normalizedMeta Json?     // GPT refined data (e.g. {expiry_date, doc_number})
+  verifiedById   String?
+  verifiedBy     User?     @relation(fields: [verifiedById], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  notifications  Notification[]
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id])
+  channel     ReminderChannel
+  scheduledAt DateTime
+  sentAt      DateTime?
+  status      String   @default("PENDING") // PENDING, SENT, FAILED
+  message     String?
+  createdAt   DateTime @default(now())
+}
+
+model BillingUsage {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  aiUsed      Int      @default(0)
+  creditsPurchased Int @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String?
+  entity    String    // e.g. 'Document', 'Driver'
+  entityId  String?
+  action    String    // e.g. 'UPLOAD', 'VERIFY', 'DELETE'
+  details   Json?
+  createdAt DateTime  @default(now())
+}

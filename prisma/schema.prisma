@@ -1,0 +1,275 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  clerkUserId  String   @unique
+  email        String   @unique
+  firstName    String?
+  lastName     String?
+  role         Role     @default(ADMIN)
+  companyId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  companyAdmin Company? @relation("CompanyAdmin")
+  companyUser  Company? @relation("CompanyUsers", fields: [companyId], references: [id])
+}
+
+model Company {
+  id                     String              @id @default(uuid())
+  name                   String
+  adminUserId            String              @unique
+  plan                   String              @default("Free")
+  companySize            String?
+  operatingRegion        String?
+  statesProvinces        String[]
+  industryType           String?
+  notificationMethod     String?
+  notificationRecipients String[]
+  adminEmail             String?
+  adminPhone             String?
+  onboardingCompleted    Boolean             @default(false)
+  aiCredits              Int                 @default(5)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  documentTypes          String[]            @default([])
+  reminderDays           String[]            @default([])
+
+  // Billing & Subscription Fields
+  stripeCustomerId       String?             @unique
+  stripeSubscriptionId   String?             @unique
+  stripePriceId          String?
+  billingCycle           BillingCycle?
+  planStartDate          DateTime?
+  nextBillingDate        DateTime?
+  subscriptionStatus     SubscriptionStatus  @default(ACTIVE)
+
+  // Feature Flags (derived from plan)
+  smsEnabled             Boolean             @default(false)
+  emailEnabled           Boolean             @default(true)
+
+  // Usage Tracking
+  monthlyCreditsUsed     Int                 @default(0)
+  monthlyDocsProcessed   Int                 @default(0)
+  lastCreditRefillDate   DateTime?
+
+  // Downgrade Grace Period
+  pendingPlanChange      String?
+  planChangeDate         DateTime?
+  planChangeReason       String?
+
+  // Relations
+  adminUser              User                @relation("CompanyAdmin", fields: [adminUserId], references: [id])
+  drivers                Driver[]
+  reminders              Reminder[]
+  User                   User[]              @relation("CompanyUsers")
+  billingHistory         BillingHistory[]
+  creditTransactions     CreditTransaction[]
+}
+
+model Driver {
+  id         String            @id @default(uuid())
+  companyId  String
+  name       String
+  contact    String?
+  email      String?
+  phone      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  documents  Document[]
+  company    Company           @relation(fields: [companyId], references: [id])
+  invitation DriverInvitation?
+
+  @@index([companyId])
+}
+
+model Document {
+  id                String             @id @default(uuid())
+  driverId          String
+  type              String
+  s3Key             String?
+  s3Url             String?
+  s3UploadedAt      DateTime?
+  fileName          String?
+  fileSize          Int?
+  mimeType          String?
+  textractJobId     String?
+  textractStatus    TextractStatus     @default(PENDING)
+  textractRawData   Json?
+  textractKeyValues Json?
+  aiProcessedAt     DateTime?
+  aiExtractedData   Json?
+  expiryDate        DateTime?
+  issueDate         DateTime?
+  documentNumber    String?
+  status            DocumentStatus     @default(PENDING)
+  statusMessage     String?
+  uploadedAt        DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  driver            Driver             @relation(fields: [driverId], references: [id])
+  reminders         DocumentReminder[]
+
+  @@index([driverId])
+  @@index([status])
+}
+
+model DocumentReminder {
+  id               String          @id @default(uuid())
+  documentId       String
+  daysBeforeExpiry Int
+  scheduledAt      DateTime
+  sentAt           DateTime?
+  status           String          @default("PENDING")
+  channel          ReminderChannel
+  message          String?
+  createdAt        DateTime        @default(now())
+  document         Document        @relation(fields: [documentId], references: [id])
+}
+
+model Reminder {
+  id          String          @id @default(uuid())
+  companyId   String
+  documentId  String
+  channel     ReminderChannel
+  scheduledAt DateTime
+  sentAt      DateTime?
+  status      String          @default("PENDING")
+  message     String?
+  createdAt   DateTime        @default(now())
+  company     Company         @relation(fields: [companyId], references: [id])
+}
+
+enum TextractStatus {
+  PENDING
+  UPLOADING
+  UPLOADED
+  TEXTRACT_PROCESSING
+  TEXTRACT_COMPLETED
+  TEXTRACT_FAILED
+  AI_PROCESSING
+  AI_COMPLETED
+  AI_FAILED
+  COMPLETED
+  FAILED
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  REJECTED
+  FAILED
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+  DRIVER
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+}
+
+model DriverInvitation {
+  id                    String           @id @default(uuid())
+  driverId              String           @unique
+  token                 String           @unique
+  email                 String?
+  phone                 String?
+  requestedDocuments    String[]
+  status                InvitationStatus @default(PENDING)
+  expiresAt             DateTime
+  completedAt           DateTime?
+  emailSentAt           DateTime?
+  smsSentAt             DateTime?
+  linkAccessedAt        DateTime?
+  documentsUploadedAt   DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  driver                Driver           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+enum InvitationStatus {
+  PENDING
+  SENT
+  ACCESSED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  TRIALING
+}
+
+enum TransactionType {
+  REFILL
+  PURCHASE
+  USED
+  BONUS
+  ADJUSTMENT
+}
+
+model BillingHistory {
+  id                   String   @id @default(uuid())
+  companyId            String
+  invoiceNumber        String   @unique
+  plan                 String?
+  amount               Float
+  status               String   @default("PENDING")
+  paidAt               DateTime?
+  billingPeriodStart   DateTime?
+  billingPeriodEnd     DateTime?
+  stripeInvoiceId      String?  @unique
+  stripePaymentIntentId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model CreditTransaction {
+  id             String          @id @default(uuid())
+  companyId      String
+  type           TransactionType
+  amount         Int
+  balanceBefore  Int
+  balanceAfter   Int
+  documentId     String?
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([type])
+  @@index([createdAt])
+}
