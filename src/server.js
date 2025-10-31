@@ -15,6 +15,7 @@ import documentRoutes from "./routes/documentRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import reminderRoutes from "./routes/reminderRoutes.js";
 import billingRoutes from "./routes/billingRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import prisma from "../prisma/client.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { getAllUsers } from "./controllers/userController.js";
@@ -63,6 +64,9 @@ app.use("/api/reminders", authMiddleware, reminderRoutes);
 
 // Billing routes
 app.use("/api/billing", authMiddleware, billingRoutes);
+
+// Dashboard routes
+app.use("/api/dashboard", authMiddleware, dashboardRoutes);
 
 // Test routes (for debugging email/SMS)
 app.use("/api/test", testRoutes);

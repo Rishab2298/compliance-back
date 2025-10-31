@@ -111,45 +111,80 @@ export const createDriver = async (req, res) => {
 export const getDrivers = async (req, res) => {
   try {
     const userId = req.auth?.userId;
+    const { page = 1, limit = 50, includeDocuments = 'false' } = req.query;
 
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized - No user ID found" });
     }
 
+    // Get user and company
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: {
+      select: {
+        id: true,
         companyAdmin: {
-          include: {
-            drivers: {
-              include: {
-                documents: {
-                  select: {
-                    id: true,
-                    type: true,
-                    status: true,
-                    expiryDate: true,
-                    uploadedAt: true,
-                  },
-                },
-              },
-              orderBy: {
-                createdAt: "desc",
-              },
-            },
-          },
-        },
+          select: { id: true }
+        }
       },
     });
 
-    if (!user) {
+    if (!user || !user.companyAdmin) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const drivers = user.companyAdmin?.drivers || [];
+    const companyId = user.companyAdmin.id;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    const shouldIncludeDocs = includeDocuments === 'true';
+
+    // Fetch drivers with optional documents
+    const [drivers, totalCount] = await Promise.all([
+      prisma.driver.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          contact: true,
+          createdAt: true,
+          updatedAt: true,
+          ...(shouldIncludeDocs && {
+            documents: {
+              select: {
+                id: true,
+                type: true,
+                status: true,
+                expiryDate: true,
+                uploadedAt: true,
+              },
+              orderBy: { uploadedAt: 'desc' },
+              take: 10, // Limit to 10 most recent documents per driver
+            },
+          }),
+          // Always include document count
+          _count: {
+            select: { documents: true }
+          }
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limitNum,
+      }),
+      prisma.driver.count({ where: { companyId } }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limitNum);
 
     return res.status(200).json({
       drivers,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        limit: limitNum,
+      },
     });
   } catch (error) {
     console.error("Error fetching drivers:", error);

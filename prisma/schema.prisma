@@ -117,6 +117,9 @@ model Document {
 
   @@index([driverId])
   @@index([status])
+  @@index([expiryDate])
+  @@index([driverId, status])
+  @@index([driverId, expiryDate])
 }
 
 model DocumentReminder {

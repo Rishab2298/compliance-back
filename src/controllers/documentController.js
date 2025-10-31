@@ -886,7 +886,11 @@ export const getDocumentStatus = async (req, res) => {
     // Get user and company
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
+      select: {
+        companyAdmin: {
+          select: { id: true }
+        }
+      },
     });
 
     if (!user || !user.companyAdmin) {
@@ -900,10 +904,15 @@ export const getDocumentStatus = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const expiringThreshold = new Date(today);
+    expiringThreshold.setDate(expiringThreshold.getDate() + 30);
+
+    const companyId = user.companyAdmin.id;
+
     // Build base where clause
     const baseWhere = {
       driver: {
-        companyId: user.companyAdmin.id,
+        companyId,
       },
     };
 
@@ -911,6 +920,7 @@ export const getDocumentStatus = async (req, res) => {
     if (search) {
       baseWhere.OR = [
         { type: { contains: search, mode: 'insensitive' } },
+        { fileName: { contains: search, mode: 'insensitive' } },
         { driver: {
             OR: [
               { name: { contains: search, mode: 'insensitive' } },
@@ -921,22 +931,78 @@ export const getDocumentStatus = async (req, res) => {
       ];
     }
 
-    // Fetch all documents to calculate status on the backend
-    const allDocuments = await prisma.document.findMany({
-      where: baseWhere,
-      include: {
-        driver: {
-          select: {
-            id: true,
-            name: true,
-            contact: true,
+    // Build status-specific where clause
+    let statusWhere = { ...baseWhere };
+
+    if (status === 'expired') {
+      statusWhere.expiryDate = { lt: today };
+    } else if (status === 'expiring') {
+      statusWhere.expiryDate = {
+        gte: today,
+        lte: expiringThreshold
+      };
+    } else if (status === 'valid') {
+      statusWhere.OR = [
+        { expiryDate: null },
+        { expiryDate: { gt: expiringThreshold } }
+      ];
+    }
+
+    // Fetch documents and count in parallel
+    const [documents, totalCount, expiredCount, expiringCount, validCount, allCount] = await Promise.all([
+      prisma.document.findMany({
+        where: statusWhere,
+        select: {
+          id: true,
+          type: true,
+          fileName: true,
+          expiryDate: true,
+          createdAt: true,
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              contact: true,
+            },
           },
         },
-      },
-    });
+        orderBy: { expiryDate: 'asc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.document.count({ where: statusWhere }),
+      // Count expired
+      prisma.document.count({
+        where: {
+          ...baseWhere,
+          expiryDate: { lt: today }
+        }
+      }),
+      // Count expiring soon
+      prisma.document.count({
+        where: {
+          ...baseWhere,
+          expiryDate: { gte: today, lte: expiringThreshold }
+        }
+      }),
+      // Count valid (no expiry or expires after 30 days)
+      prisma.document.count({
+        where: {
+          ...baseWhere,
+          OR: [
+            { expiryDate: null },
+            { expiryDate: { gt: expiringThreshold } }
+          ]
+        }
+      }),
+      // Count all
+      prisma.document.count({ where: baseWhere }),
+    ]);
 
-    // Calculate status for each document
-    const documentsWithStatus = allDocuments.map((doc) => {
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Calculate status for each document for display
+    const documentsWithStatus = documents.map((doc) => {
       let docStatus;
 
       if (!doc.expiryDate) {
@@ -955,29 +1021,6 @@ export const getDocumentStatus = async (req, res) => {
         }
       }
 
-      return { ...doc, status: docStatus };
-    });
-
-    // Filter by status if not 'all'
-    const filteredDocuments = status === 'all'
-      ? documentsWithStatus
-      : documentsWithStatus.filter(doc => doc.status === status);
-
-    // Calculate status counts
-    const statusCounts = {
-      all: allDocuments.length,
-      expired: documentsWithStatus.filter(d => d.status === 'expired').length,
-      expiring: documentsWithStatus.filter(d => d.status === 'expiring').length,
-      valid: documentsWithStatus.filter(d => d.status === 'valid').length,
-    };
-
-    // Paginate filtered documents
-    const totalCount = filteredDocuments.length;
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const paginatedDocuments = filteredDocuments.slice(skip, skip + limitNum);
-
-    // Format response
-    const documents = paginatedDocuments.map((doc) => {
       // Split name into firstName and lastName
       const nameParts = doc.driver.name ? doc.driver.name.trim().split(' ') : ['Unknown'];
       const firstName = nameParts[0] || '';
@@ -989,7 +1032,7 @@ export const getDocumentStatus = async (req, res) => {
         filename: doc.fileName,
         expiryDate: doc.expiryDate,
         createdAt: doc.createdAt,
-        status: doc.status,
+        status: docStatus,
         driver: {
           id: doc.driver.id,
           firstName: firstName,
@@ -1002,12 +1045,17 @@ export const getDocumentStatus = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        documents,
+        documents: documentsWithStatus,
         totalCount,
         totalPages,
         currentPage: pageNum,
         limit: limitNum,
-        statusCounts,
+        statusCounts: {
+          all: allCount,
+          expired: expiredCount,
+          expiring: expiringCount,
+          valid: validCount,
+        },
       },
     });
   } catch (error) {
