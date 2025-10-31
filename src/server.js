@@ -175,10 +175,17 @@ app.post("/api/clerk-webhook", async (req, res) => {
 // Stripe Webhook to handle payment events
 app.post("/api/stripe-webhook", handleStripeWebhook);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  if (process.env.NODE_ENV === 'production') {
+    const privateKey = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/privkey.pem', 'utf8');
+    const certificate = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/fullchain.pem', 'utf8');
 
-  // Start the reminder cron job
-  startReminderCronJob();
-});
+    https.createServer({ key: privateKey, cert: certificate }, app).listen(443, () => {
+      console.log("✅ Server running securely on port 443");
+      startReminderCronJob();
+    });
+  } else {
+    app.listen(5000, () => {
+      console.log("✅ Server running on port 3000");
+      startReminderCronJob();
+    });
+  }
