@@ -2,6 +2,8 @@ import express from "express";
 import { clerkMiddleware, clerkClient } from "@clerk/express";
 import { Webhook } from "svix";
 import cors from "cors";
+import https from "https";
+import fs from "fs";
 import "dotenv/config";
 
 import userRoutes from "./routes/userRoutes.js";
@@ -185,7 +187,7 @@ app.post("/api/stripe-webhook", handleStripeWebhook);
     });
   } else {
     app.listen(5000, () => {
-      console.log("✅ Server running on port 3000");
+      console.log("✅ Server running on port 5000");
       startReminderCronJob();
     });
   }
