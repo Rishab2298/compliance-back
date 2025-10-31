@@ -957,7 +957,7 @@ export const getDocumentStatus = async (req, res) => {
           type: true,
           fileName: true,
           expiryDate: true,
-          createdAt: true,
+          uploadedAt: true,
           driver: {
             select: {
               id: true,
@@ -1031,7 +1031,7 @@ export const getDocumentStatus = async (req, res) => {
         type: doc.type,
         filename: doc.fileName,
         expiryDate: doc.expiryDate,
-        createdAt: doc.createdAt,
+        uploadedAt: doc.uploadedAt,
         status: docStatus,
         driver: {
           id: doc.driver.id,
