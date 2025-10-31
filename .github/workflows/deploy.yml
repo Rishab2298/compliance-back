@@ -36,6 +36,9 @@ jobs:
 
             cd /home/bitnami/htdocs/compliance-back
 
+            echo "Discarding local changes..."
+            git reset --hard HEAD
+
             echo "Pulling latest code..."
             git pull origin main
 
