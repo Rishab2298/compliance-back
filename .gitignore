@@ -9,3 +9,7 @@
 .env.*
 
 node_modules/
+
+CRON_JOB_VERIFICATION.md
+STRIPE_SETUP.md
+STRIPE_WEBHOOKS_TESTING.md
