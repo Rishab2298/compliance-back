@@ -42,6 +42,9 @@ jobs:
             echo "Pulling latest code..."
             git pull origin main
 
+            echo "Stopping PM2 before installing dependencies..."
+            pm2 stop compliance-backend || true
+
             echo "Installing dependencies (including Prisma)..."
             npm ci
 
@@ -51,8 +54,8 @@ jobs:
             echo "Generating Prisma Client..."
             npx prisma generate
 
-            echo "Restarting application with PM2..."
-            pm2 reload compliance-backend --update-env || pm2 start src/server.js --name "compliance-backend"
+            echo "Starting application with PM2..."
+            pm2 start src/server.js --name "compliance-backend" --update-env || pm2 restart compliance-backend --update-env
             pm2 save
 
             echo "Deployment completed successfully!"
