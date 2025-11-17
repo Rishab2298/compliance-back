@@ -14,33 +14,36 @@ export const getReminders = async (req, res) => {
       return res.status(401).json({ error: "Unauthorized - No user ID found" });
     }
 
-    // Get user and company
+    // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
+    });
+
+    if (!user || !user.companyId) {
+      return res.status(404).json({ error: "User or company not found" });
+    }
+
+    // Get company with drivers and documents
+    const company = await prisma.company.findUnique({
+      where: { id: user.companyId },
       include: {
-        companyAdmin: {
+        drivers: {
           include: {
-            drivers: {
-              include: {
-                documents: {
-                  where: {
-                    status: { in: ["ACTIVE", "EXPIRING_SOON"] },
-                    expiryDate: { not: null },
-                  },
-                  orderBy: { expiryDate: "asc" },
-                },
+            documents: {
+              where: {
+                status: { in: ["ACTIVE", "EXPIRING_SOON"] },
+                expiryDate: { not: null },
               },
+              orderBy: { expiryDate: "asc" },
             },
           },
         },
       },
     });
 
-    if (!user || !user.companyAdmin) {
-      return res.status(404).json({ error: "User or company not found" });
+    if (!company) {
+      return res.status(404).json({ error: "Company not found" });
     }
-
-    const company = user.companyAdmin;
     const reminderDays = company.reminderDays || [];
 
     // If no reminder settings configured, return empty
@@ -200,13 +203,12 @@ export const sendManualReminder = async (req, res) => {
       return res.status(400).json({ error: "Document ID is required" });
     }
 
-    // Get user and company
+    // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
@@ -215,7 +217,7 @@ export const sendManualReminder = async (req, res) => {
       where: {
         id: documentId,
         driver: {
-          companyId: user.companyAdmin.id,
+          companyId: user.companyId,
         },
       },
       include: {
@@ -287,13 +289,12 @@ export const getReminderHistory = async (req, res) => {
       return res.status(401).json({ error: "Unauthorized - No user ID found" });
     }
 
-    // Get user and company
+    // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
@@ -302,7 +303,7 @@ export const getReminderHistory = async (req, res) => {
       where: {
         id: documentId,
         driver: {
-          companyId: user.companyAdmin.id,
+          companyId: user.companyId,
         },
       },
     });

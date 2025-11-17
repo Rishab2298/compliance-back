@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client.js';
 import { getPlanLimits } from '../config/planLimits.js';
 
 // Initialize Stripe only if API key is provided
@@ -9,8 +9,6 @@ if (process.env.STRIPE_SECRET_KEY) {
 } else {
   console.warn('⚠️  STRIPE_SECRET_KEY not configured - Stripe features will be disabled');
 }
-
-const prisma = new PrismaClient();
 
 /**
  * Check if Stripe is configured
@@ -90,6 +88,8 @@ export async function createSubscriptionCheckout(companyId, planName, billingCyc
   ensureStripeConfigured();
 
   try {
+    console.log(`Creating subscription checkout for company: ${companyId}, plan: ${planName}`);
+
     const company = await prisma.company.findUnique({
       where: { id: companyId },
       include: { adminUser: true }
@@ -99,17 +99,25 @@ export async function createSubscriptionCheckout(companyId, planName, billingCyc
       throw new Error('Company not found');
     }
 
+    console.log(`Company found: ${company.name}, adminEmail: ${company.adminEmail}`);
+
     const planLimits = getPlanLimits(planName);
 
     if (!planLimits.price) {
       throw new Error('Invalid plan or custom pricing required');
     }
 
+    // Use company's adminEmail if available, otherwise fallback to adminUser email
+    const customerEmail = company.adminEmail || company.adminUser?.email || 'noemail@example.com';
+    const customerName = company.name;
+
+    console.log(`Getting or creating Stripe customer with email: ${customerEmail}`);
+
     // Get or create Stripe customer
     const customer = await getOrCreateCustomer(
       companyId,
-      company.adminUser.email,
-      company.name
+      customerEmail,
+      customerName
     );
 
     // Determine price based on billing cycle

@@ -16,19 +16,30 @@ import testRoutes from "./routes/testRoutes.js";
 import reminderRoutes from "./routes/reminderRoutes.js";
 import billingRoutes from "./routes/billingRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import superAdminRoutes from "./routes/superAdminRoutes.js";
+import mfaRoutes from "./routes/mfaRoutes.js";
+import policyRoutes from "./routes/policyRoutes.js";
+import teamRoutes from "./routes/teamRoutes.js";
+import auditLogRoutes from "./routes/auditLogRoutes.js";
+import systemMetricsRoutes from "./routes/systemMetricsRoutes.js";
 import prisma from "../prisma/client.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
+import { superAdminMiddleware } from "./middleware/superAdminMiddleware.js";
+import { requirePolicyAcceptance } from "./middleware/policyAcceptanceMiddleware.js";
+import { metricsMiddleware } from "./middleware/metricsMiddleware.js";
+import { initializeErrorTracking, errorHandlerMiddleware } from "./services/errorTracker.js";
 import { getAllUsers } from "./controllers/userController.js";
 import companyRoutes from "./routes/compnayRoutes.js";
 import { startReminderCronJob } from "./services/reminderCronService.js";
 import { handleStripeWebhook } from "./controllers/stripeWebhookController.js";
+import { healthCheck } from "./controllers/systemMetricsController.js";
 
 const app = express();
 
 // Middleware
 app.use(
   cors({
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
     credentials: true,
   })
 );
@@ -40,18 +51,28 @@ app.use("/api/stripe-webhook", express.raw({ type: "application/json" }));
 // Regular JSON parsing for other routes
 app.use(express.json());
 app.use(clerkMiddleware());
+
+// Initialize error tracking for uncaught exceptions and unhandled rejections
+initializeErrorTracking();
+
+// Add metrics tracking middleware (tracks response times, errors, etc.)
+app.use(metricsMiddleware);
+
 // Sample route
 app.get("/", (req, res) => {
   res.send("Compliance Backend is running");
 });
 
+// Public health check endpoint
+app.get("/api/health", healthCheck);
+
 // Clerk sends JSON
 
 app.use("/api/users", authMiddleware, getAllUsers);
 app.use("/api/onboarding", onboardingRoutes);
-app.use("/api/document-types", authMiddleware, documentTypeRoutes);
-app.use("/api/drivers", authMiddleware, driverRoutes);
-app.use("/api/documents", authMiddleware, documentRoutes);
+app.use("/api/document-types", authMiddleware, requirePolicyAcceptance, documentTypeRoutes);
+app.use("/api/drivers", authMiddleware, requirePolicyAcceptance, driverRoutes);
+app.use("/api/documents", authMiddleware, requirePolicyAcceptance, documentRoutes);
 
 // Driver invitation routes (public routes for token-based access)
 app.use("/api/driver-invitations", driverInvitationRoutes);
@@ -60,18 +81,34 @@ app.use("/api/driver-invitations", driverInvitationRoutes);
 app.use("/api/company", companyRoutes);
 
 // Reminder routes
-app.use("/api/reminders", authMiddleware, reminderRoutes);
+app.use("/api/reminders", authMiddleware, requirePolicyAcceptance, reminderRoutes);
 
 // Billing routes
-app.use("/api/billing", authMiddleware, billingRoutes);
+app.use("/api/billing", authMiddleware, requirePolicyAcceptance, billingRoutes);
 
 // Dashboard routes
-app.use("/api/dashboard", authMiddleware, dashboardRoutes);
+app.use("/api/dashboard", authMiddleware, requirePolicyAcceptance, dashboardRoutes);
+
+// Super Admin routes (protected by both auth and super admin middleware)
+app.use("/api/super-admin", authMiddleware, superAdminMiddleware, superAdminRoutes);
+
+// System Metrics routes (protected by super admin middleware)
+app.use("/api/super-admin/system-metrics", authMiddleware, superAdminMiddleware, systemMetricsRoutes);
 
 // Test routes (for debugging email/SMS)
 app.use("/api/test", testRoutes);
 
+// MFA routes (protected by auth middleware, NO policy check - MFA comes before policies)
+app.use("/api/mfa", authMiddleware, mfaRoutes);
 
+// Policy routes (public endpoints + acceptance endpoints, NO policy check)
+app.use("/api/policies", policyRoutes);
+
+// Team management routes (protected by auth + DSP permissions + policies)
+app.use("/api/team", authMiddleware, requirePolicyAcceptance, teamRoutes);
+
+// Audit log routes (protected by auth + DSP permissions + policies)
+app.use("/api/audit-logs", authMiddleware, requirePolicyAcceptance, auditLogRoutes);
 
 // Webhook to handle Clerk events
 app.post("/api/clerk-webhook", async (req, res) => {
@@ -115,7 +152,7 @@ app.post("/api/clerk-webhook", async (req, res) => {
 
   // Handle the webhook event
   try {
-    // Only handle user creation
+    // Handle user creation (organic signups only - invited users are created directly)
     if (event.type === "user.created") {
       const clerkUser = event.data;
       const email = clerkUser.email_addresses[0]?.email_address;
@@ -126,46 +163,190 @@ app.post("/api/clerk-webhook", async (req, res) => {
         return res.status(200).json({ received: true });
       }
 
-      // Check for existing user by both clerkUserId and email
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { clerkUserId: clerkUser.id },
-            { email: email }
-          ]
-        }
+      console.log("📧 Processing user.created event for:", email);
+
+      // Fetch complete user details from Clerk to ensure we have firstName and lastName
+      let fullUserData;
+      try {
+        fullUserData = await clerkClient.users.getUser(clerkUser.id);
+        console.log("✅ Fetched user details from Clerk:", {
+          id: fullUserData.id,
+          firstName: fullUserData.firstName,
+          lastName: fullUserData.lastName,
+          email: email
+        });
+      } catch (error) {
+        console.error("❌ Error fetching user from Clerk:", error);
+        fullUserData = clerkUser; // Fallback to webhook data
+      }
+
+      // Extract name data with fallbacks
+      const firstName = fullUserData.firstName || clerkUser.first_name || null;
+      const lastName = fullUserData.lastName || clerkUser.last_name || null;
+
+      // Check if user already exists in database
+      const existingUser = await prisma.user.findUnique({
+        where: { clerkUserId: clerkUser.id }
       });
 
-      if (!existingUser) {
+      if (existingUser) {
+        // User already exists (invited user who already has Clerk account)
+        // Just update their name if it changed
+        console.log("✅ User already exists in database (invited user):", email);
+
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            firstName: firstName || existingUser.firstName,
+            lastName: lastName || existingUser.lastName,
+          },
+        });
+      } else {
+        // ✅ NEW ORGANIC SIGNUP - User not invited, signing up on their own
+        console.log("➕ Creating new user (organic signup):", email);
+        console.log("   First Name:", firstName);
+        console.log("   Last Name:", lastName);
+
         await prisma.user.create({
           data: {
             clerkUserId: clerkUser.id,
             email: email,
+            firstName: firstName,
+            lastName: lastName,
+            role: 'ADMIN', // Default role for new signups
+            dspRole: 'ADMIN', // Default DSP role for company admins
+            // No companyId - they need to complete onboarding
           },
         });
+
         await clerkClient.users.updateUserMetadata(clerkUser.id, {
           publicMetadata: {
-            "role": "admin",
+            role: "ADMIN",
+            dspRole: "ADMIN",
           },
         });
-        console.log("New user created and added to database:", clerkUser.id);
-      } else {
-        console.log("User already exists, skipping creation:", clerkUser.id);
+
+        console.log("✅ New user created successfully:", email);
       }
     } else if (event.type === "user.deleted") {
       // Handle user deletion
       const clerkUser = event.data;
+      console.log("Processing user deletion for:", clerkUser.id);
 
-      const deletedUser = await prisma.user.delete({
-        where: {
+      try {
+        // First, find the user to check if they exist and have a company
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: clerkUser.id },
+          include: { companyAdmin: true },
+        });
+
+        if (!user) {
+          console.log("User not found in database, already deleted:", clerkUser.id);
+          return res.status(200).json({ received: true });
+        }
+
+        console.log("User found in database:", {
+          userId: user.id,
+          email: user.email,
+          hasCompany: !!user.companyAdmin,
+          companyId: user.companyAdmin?.id
+        });
+
+        // If user is a company admin, delete the company first (cascade)
+        if (user.companyAdmin) {
+          console.log("User is a company admin, deleting company first:", user.companyAdmin.id);
+
+          // Delete all related data in correct order
+          // 1. Delete document reminders first (they reference documents)
+          await prisma.documentReminder.deleteMany({
+            where: {
+              document: {
+                driver: {
+                  companyId: user.companyAdmin.id,
+                },
+              },
+            },
+          });
+          console.log("Deleted all document reminders for company");
+
+          // 2. Delete driver invitations
+          await prisma.driverInvitation.deleteMany({
+            where: {
+              driver: {
+                companyId: user.companyAdmin.id,
+              },
+            },
+          });
+          console.log("Deleted all driver invitations for company");
+
+          // 3. Delete documents
+          await prisma.document.deleteMany({
+            where: {
+              driver: {
+                companyId: user.companyAdmin.id,
+              },
+            },
+          });
+          console.log("Deleted all documents for company");
+
+          // 4. Delete drivers
+          await prisma.driver.deleteMany({
+            where: { companyId: user.companyAdmin.id },
+          });
+          console.log("Deleted all drivers for company");
+
+          // 5. Delete reminders
+          await prisma.reminder.deleteMany({
+            where: { companyId: user.companyAdmin.id },
+          });
+          console.log("Deleted all reminders for company");
+
+          // 6. Delete custom reminders
+          await prisma.customReminder.deleteMany({
+            where: { companyId: user.companyAdmin.id },
+          });
+          console.log("Deleted all custom reminders for company");
+
+          // 7. Delete billing history
+          await prisma.billingHistory.deleteMany({
+            where: { companyId: user.companyAdmin.id },
+          });
+          console.log("Deleted billing history for company");
+
+          // 8. Delete credit transactions
+          await prisma.creditTransaction.deleteMany({
+            where: { companyId: user.companyAdmin.id },
+          });
+          console.log("Deleted credit transactions for company");
+
+          // 9. Update any other users who were part of this company
+          await prisma.user.updateMany({
+            where: { companyId: user.companyAdmin.id },
+            data: { companyId: null },
+          });
+          console.log("Unlinked other users from company");
+
+          // 10. Finally, delete the company
+          await prisma.company.delete({
+            where: { id: user.companyAdmin.id },
+          });
+          console.log("Deleted company:", user.companyAdmin.id);
+        }
+
+        // Finally, delete the user
+        await prisma.user.delete({
+          where: { clerkUserId: clerkUser.id },
+        });
+        console.log("✅ User and all related data deleted successfully:", clerkUser.id);
+
+      } catch (err) {
+        console.error("❌ Error deleting user:", {
           clerkUserId: clerkUser.id,
-        },
-      }).catch(err => {
-        console.log("User not found in database, already deleted:", clerkUser.id);
-      });
-
-      if (deletedUser) {
-        console.log("User deleted from database:", clerkUser.id);
+          error: err.message,
+          code: err.code,
+          stack: err.stack,
+        });
+        // Still return 200 to acknowledge receipt
       }
     }
 
@@ -180,6 +361,9 @@ app.post("/api/clerk-webhook", async (req, res) => {
 
 // Stripe Webhook to handle payment events
 app.post("/api/stripe-webhook", handleStripeWebhook);
+
+// Error handling middleware (must be last)
+app.use(errorHandlerMiddleware);
 
   if (process.env.NODE_ENV === 'production') {
     const privateKey = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/privkey.pem', 'utf8');

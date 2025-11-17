@@ -1,0 +1,116 @@
+prisma:warn In production, we recommend using `prisma generate --no-engine` (See: `prisma generate --help`)
+✅ Error tracking initialized
+✅ Server running on port 5003
+✅ Reminder cron jobs scheduled:
+   - Document expiry reminders: Daily at 8:00 AM
+   - Custom reminders check: Every 15 minutes
+Clerk - DEPRECATION WARNING: "req.auth" is deprecated and will be removed in the next major release.
+Use `req.auth()` as a function instead.
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+💰 Fetching all billing data for super admin...
+✅ Billing data fetched successfully
+📊 Companies: 3
+💳 Billing History: 3
+💰 Credit Transactions: 7
+📈 Stats: {
+  totalRevenue: 347,
+  totalTransactions: 3,
+  monthlyRevenue: 347,
+  monthlyTransactions: 3,
+  totalCompanies: 3,
+  planDistribution: [
+    { plan: 'Professional', count: 2, totalCredits: 997 },
+    { plan: 'Starter', count: 1, totalCredits: 100 }
+  ],
+  subscriptionBreakdown: [ { status: 'ACTIVE', count: 3 } ]
+}
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+💰 Fetching all billing data for super admin...
+✅ Billing data fetched successfully
+📊 Companies: 3
+💳 Billing History: 3
+💰 Credit Transactions: 7
+📈 Stats: {
+  totalRevenue: 347,
+  totalTransactions: 3,
+  monthlyRevenue: 347,
+  monthlyTransactions: 3,
+  totalCompanies: 3,
+  planDistribution: [
+    { plan: 'Professional', count: 2, totalCredits: 997 },
+    { plan: 'Starter', count: 1, totalCredits: 100 }
+  ],
+  subscriptionBreakdown: [ { status: 'ACTIVE', count: 3 } ]
+}
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+📊 Fetching AI usage data... {
+  page: 1,
+  limit: 20,
+  period: 'all',
+  feature: 'all',
+  status: 'all',
+  search: ''
+}
+✅ AI usage data fetched: {
+  total: 3,
+  stats: {
+    totalRequests: 3,
+    totalTokens: 3348,
+    totalCost: 0.09070244999999999,
+    activeCompanies: 1,
+    topFeature: 'DOCUMENT_ANALYSIS'
+  }
+}
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+💰 Fetching all billing data for super admin...
+✅ Billing data fetched successfully
+📊 Companies: 3
+💳 Billing History: 3
+💰 Credit Transactions: 7
+📈 Stats: {
+  totalRevenue: 347,
+  totalTransactions: 3,
+  monthlyRevenue: 347,
+  monthlyTransactions: 3,
+  totalCompanies: 3,
+  planDistribution: [
+    { plan: 'Professional', count: 2, totalCredits: 997 },
+    { plan: 'Starter', count: 1, totalCredits: 100 }
+  ],
+  subscriptionBreakdown: [ { status: 'ACTIVE', count: 3 } ]
+}
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔔 Checking custom reminders... 2025-11-16T17:15:00.020Z
+📊 No custom reminders due at this time
+✅ Custom reminders check completed in 0.03s
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji
+🔐 Super Admin Middleware - User: user_35R6m3axxWVxpc9YRr2IumTNDji, Role: SUPER_ADMIN
+✅ Super admin access granted for user user_35R6m3axxWVxpc9YRr2IumTNDji

@@ -150,8 +150,9 @@ export const syncUser = async (req, res) => {
     }
 
     // User doesn't exist, create them
-    // Get user details from Clerk (available from authMiddleware)
-    const clerkUser = req.user;
+    // Get user details from Clerk when needed (only on user creation)
+    const { clerkClient } = await import("@clerk/express");
+    const clerkUser = await clerkClient.users.getUser(userId);
 
     if (!clerkUser || !clerkUser.emailAddresses || clerkUser.emailAddresses.length === 0) {
       return res.status(400).json({ error: "Unable to get user email from Clerk" });

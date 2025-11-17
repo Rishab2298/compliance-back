@@ -16,21 +16,24 @@ export const getDashboardStats = async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
       select: {
-        companyAdmin: {
-          select: {
-            id: true,
-            aiCredits: true,
-            plan: true,
-          }
-        }
+        companyId: true,
       },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
+
+    // Get company details
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        aiCredits: true,
+        plan: true,
+      },
+    });
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -175,8 +178,8 @@ export const getDashboardStats = async (req, res) => {
           expiringDocuments: expiringCount,
           expiringSoonDocuments: expiringSoonCount, // Within 7 days
           validDocuments: validCount,
-          aiCredits: user.companyAdmin.aiCredits,
-          plan: user.companyAdmin.plan,
+          aiCredits: company?.aiCredits || 0,
+          plan: company?.plan || 'FREE',
         },
         recentDrivers,
         upcomingExpirations: formattedExpirations,
@@ -206,17 +209,15 @@ export const getDocumentStatsByType = async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
       select: {
-        companyAdmin: {
-          select: { id: true }
-        }
+        companyId: true,
       },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
 
     // Group documents by type and count
     const documentsByType = await prisma.document.groupBy({

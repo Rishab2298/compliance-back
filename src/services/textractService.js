@@ -73,6 +73,8 @@ export const parseWithAI = async (textractData, documentType = 'Driver\'s Licens
       height: '',
     };
 
+    const startTime = Date.now();
+
     const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -97,9 +99,22 @@ export const parseWithAI = async (textractData, documentType = 'Driver\'s Licens
       response_format: { type: 'json_object' },
     });
 
+    const requestDuration = Date.now() - startTime;
+
     const parsedData = JSON.parse(gptResponse.choices[0].message.content);
     console.log('AI Parsed Data:', parsedData);
-    return parsedData;
+
+    // Return parsed data with usage information
+    return {
+      parsedData,
+      usage: {
+        promptTokens: gptResponse.usage?.prompt_tokens || 0,
+        completionTokens: gptResponse.usage?.completion_tokens || 0,
+        totalTokens: gptResponse.usage?.total_tokens || 0,
+        model: gptResponse.model || 'gpt-4o-mini',
+        requestDuration
+      }
+    };
   } catch (error) {
     console.error('AI parsing error:', error);
     throw new Error(`Failed to parse document data: ${error.message}`);

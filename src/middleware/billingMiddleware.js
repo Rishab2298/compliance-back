@@ -1,8 +1,7 @@
+import { getAuth } from "@clerk/express";
 import * as billingService from '../services/billingService.js';
 import { getNextTier, hasFeature } from '../config/planLimits.js';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../prisma/client.js';
 
 /**
  * Billing Middleware
@@ -14,7 +13,8 @@ const prisma = new PrismaClient();
  */
 async function checkDriverLimit(req, res, next) {
   try {
-    const companyId = req.user?.companyId
+    // Get companyId from Clerk session claims
+    const companyId = getAuth(req)?.sessionClaims?.metadata?.companyId
 
     if (!companyId) {
       return res.status(401).json({ error: 'Company ID not found in user metadata' })
@@ -23,7 +23,8 @@ async function checkDriverLimit(req, res, next) {
     const limitCheck = await billingService.checkLimit(companyId, 'drivers')
 
     if (!limitCheck.allowed) {
-      const nextTier = getNextTier(req.user.plan || 'Free')
+      const plan = getAuth(req)?.sessionClaims?.metadata?.plan || 'Free'
+      const nextTier = getNextTier(plan)
 
       return res.status(403).json({
         error: 'Driver limit reached',
@@ -50,7 +51,7 @@ async function checkDriverLimit(req, res, next) {
  */
 async function checkDocumentLimit(req, res, next) {
   try {
-    const companyId = req.user?.companyId
+    const companyId = getAuth(req)?.sessionClaims?.metadata?.companyId
     const driverId = req.params.driverId || req.body.driverId
 
     if (!companyId) {
@@ -64,7 +65,8 @@ async function checkDocumentLimit(req, res, next) {
     const limitCheck = await billingService.checkLimit(companyId, 'documents', { driverId })
 
     if (!limitCheck.allowed) {
-      const nextTier = getNextTier(req.user.plan || 'Free')
+      const plan = getAuth(req)?.sessionClaims?.metadata?.plan || 'Free'
+      const nextTier = getNextTier(plan)
 
       return res.status(403).json({
         error: 'Document limit reached',
@@ -90,7 +92,7 @@ async function checkDocumentLimit(req, res, next) {
  */
 async function checkCredits(req, res, next) {
   try {
-    const companyId = req.user?.companyId
+    const companyId = getAuth(req)?.sessionClaims?.metadata?.companyId
     const amount = req.body.creditsRequired || 1
 
     if (!companyId) {
@@ -132,7 +134,7 @@ async function checkCredits(req, res, next) {
 function requiresFeature(featureName) {
   return async (req, res, next) => {
     try {
-      const plan = req.user?.plan || 'Free'
+      const plan = getAuth(req)?.sessionClaims?.metadata?.plan || 'Free'
 
       if (!hasFeature(plan, featureName)) {
         const nextTier = getNextTier(plan)
@@ -160,7 +162,7 @@ function requiresFeature(featureName) {
  */
 async function attachBillingInfo(req, res, next) {
   try {
-    const companyId = req.user?.companyId
+    const companyId = getAuth(req)?.sessionClaims?.metadata?.companyId
 
     if (!companyId) {
       return next()
@@ -208,7 +210,7 @@ async function attachBillingInfo(req, res, next) {
  */
 async function requireActiveSubscription(req, res, next) {
   try {
-    const companyId = req.user?.companyId
+    const companyId = getAuth(req)?.sessionClaims?.metadata?.companyId
 
     if (!companyId) {
       return res.status(401).json({ error: 'Company ID not found' })

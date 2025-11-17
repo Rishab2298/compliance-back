@@ -8,6 +8,7 @@ import {
 } from '../services/s3Service.js';
 import { extractDocumentData, parseWithAI } from '../services/textractService.js';
 import { deductCredits, checkLimit } from '../services/billingService.js';
+import auditService from '../services/auditService.js';
 
 /**
  * Generate presigned URLs for multiple file uploads
@@ -34,10 +35,9 @@ export const generatePresignedUrls = async (req, res) => {
     // Get user and verify they have access to this driver
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -45,7 +45,7 @@ export const generatePresignedUrls = async (req, res) => {
     const driver = await prisma.driver.findFirst({
       where: {
         id: driverId,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
     });
 
@@ -60,7 +60,7 @@ export const generatePresignedUrls = async (req, res) => {
 
         // Generate unique S3 key
         const key = generateDocumentKey(
-          user.companyAdmin.id,
+          user.companyId,
           driverId,
           filename
         );
@@ -121,10 +121,9 @@ export const createDocument = async (req, res) => {
     // Get user and verify access
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -132,7 +131,7 @@ export const createDocument = async (req, res) => {
     const driver = await prisma.driver.findFirst({
       where: {
         id: driverId,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
     });
 
@@ -155,6 +154,26 @@ export const createDocument = async (req, res) => {
         fileName: filename,
         fileSize: size || null,
         mimeType: contentType || null,
+      },
+    });
+
+    // Log document upload
+    await auditService.logDocumentOperation({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: user.companyId,
+      action: "DOCUMENT_UPLOADED",
+      documentId: document.id,
+      documentType: document.type,
+      driverId: driver.id,
+      driverName: driver.name,
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+      metadata: {
+        fileName: filename,
+        fileSize: size,
+        mimeType: contentType,
       },
     });
 
@@ -189,10 +208,9 @@ export const updateDocumentDetails = async (req, res) => {
     // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -206,7 +224,7 @@ export const updateDocumentDetails = async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    if (document.driver.companyId !== user.companyAdmin.id) {
+    if (document.driver.companyId !== user.companyId) {
       return res.status(403).json({ error: 'Unauthorized access to document' });
     }
 
@@ -268,10 +286,9 @@ export const getDriverDocuments = async (req, res) => {
     // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -279,7 +296,7 @@ export const getDriverDocuments = async (req, res) => {
     const driver = await prisma.driver.findFirst({
       where: {
         id: driverId,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
     });
 
@@ -322,10 +339,9 @@ export const deleteDocument = async (req, res) => {
     // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -339,7 +355,7 @@ export const deleteDocument = async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    if (document.driver.companyId !== user.companyAdmin.id) {
+    if (document.driver.companyId !== user.companyId) {
       return res.status(403).json({ error: 'Unauthorized access to document' });
     }
 
@@ -356,6 +372,25 @@ export const deleteDocument = async (req, res) => {
     // Delete from database
     await prisma.document.delete({
       where: { id: documentId },
+    });
+
+    // Log document deletion
+    await auditService.logDocumentOperation({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: user.companyId,
+      action: "DOCUMENT_DELETED",
+      documentId: document.id,
+      documentType: document.type,
+      driverId: document.driver.id,
+      driverName: document.driver.name,
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+      metadata: {
+        fileName: document.fileName,
+        fileSize: document.fileSize,
+      },
     });
 
     return res.status(200).json({
@@ -387,10 +422,9 @@ export const getDocumentDownloadUrl = async (req, res) => {
     // Get user
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -404,7 +438,7 @@ export const getDocumentDownloadUrl = async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    if (document.driver.companyId !== user.companyAdmin.id) {
+    if (document.driver.companyId !== user.companyId) {
       return res.status(403).json({ error: 'Unauthorized access to document' });
     }
 
@@ -447,14 +481,13 @@ export const scanDocumentWithAI = async (req, res) => {
     // Get user and company
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
 
     // Check credits using billing service
     const creditCheck = await checkLimit(companyId, 'credits', { amount: 1 });
@@ -480,7 +513,7 @@ export const scanDocumentWithAI = async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    if (document.driver.companyId !== user.companyAdmin.id) {
+    if (document.driver.companyId !== user.companyId) {
       return res.status(403).json({ error: 'Unauthorized access to document' });
     }
 
@@ -501,7 +534,9 @@ export const scanDocumentWithAI = async (req, res) => {
 
     // Parse with OpenAI
     console.log('Parsing with OpenAI...');
-    const parsedData = await parseWithAI(textractData, document.type);
+    const parseResult = await parseWithAI(textractData, document.type);
+    const parsedData = parseResult.parsedData;
+    const usage = parseResult.usage;
     console.log('OpenAI parsing complete:', parsedData);
 
     // Deduct credits using billing service
@@ -512,6 +547,53 @@ export const scanDocumentWithAI = async (req, res) => {
         error: 'Failed to deduct credits',
         message: deductResult.message
       });
+    }
+
+    // Track AI usage
+    try {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true }
+      });
+
+      // Calculate cost for GPT-4o-mini
+      // Input: $0.150 per 1M tokens, Output: $0.600 per 1M tokens
+      const inputCost = (usage.promptTokens / 1_000_000) * 0.150;
+      const outputCost = (usage.completionTokens / 1_000_000) * 0.600;
+      const lambdaCost = 0.09; // Lambda function text extraction cost
+      const totalCost = inputCost + outputCost + lambdaCost;
+
+      await prisma.aIUsage.create({
+        data: {
+          companyId,
+          companyName: company?.name || 'Unknown',
+          userId: user.id,
+          userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+          userEmail: user.email,
+          feature: 'DOCUMENT_ANALYSIS',
+          action: `AI scan of ${document.type || 'document'}`,
+          tokensUsed: usage.totalTokens,
+          inputTokens: usage.promptTokens,
+          outputTokens: usage.completionTokens,
+          cost: totalCost,
+          model: usage.model,
+          provider: 'openai',
+          requestDuration: usage.requestDuration,
+          status: 'SUCCESS',
+          metadata: {
+            documentId,
+            documentType: document.type,
+            s3Key: document.s3Key
+          },
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      console.log('✅ AI usage tracked successfully');
+    } catch (trackingError) {
+      console.error('⚠️ Failed to track AI usage:', trackingError);
+      // Don't fail the request if tracking fails
     }
 
     console.log('Returning extracted data to frontend');
@@ -528,6 +610,43 @@ export const scanDocumentWithAI = async (req, res) => {
     });
   } catch (error) {
     console.error('Error scanning document:', error);
+
+    // Track failed AI usage attempt
+    try {
+      const company = await prisma.company.findUnique({
+        where: { id: user?.companyId },
+        select: { name: true }
+      });
+
+      if (user && user.companyId) {
+        await prisma.aIUsage.create({
+          data: {
+            companyId: user.companyId,
+            companyName: company?.name || 'Unknown',
+            userId: user.id,
+            userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+            userEmail: user.email,
+            feature: 'DOCUMENT_ANALYSIS',
+            action: `Failed AI scan attempt`,
+            tokensUsed: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cost: 0,
+            status: 'FAILED',
+            errorMessage: error.message,
+            errorCode: error.code || 'UNKNOWN_ERROR',
+            metadata: {
+              documentId: req.params.documentId
+            },
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+    } catch (trackingError) {
+      console.error('⚠️ Failed to track failed AI usage:', trackingError);
+    }
+
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message,
@@ -559,14 +678,13 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
     // Get user and company
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
     const creditsRequired = documentIds.length;
 
     // Check credits using billing service
@@ -593,7 +711,7 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
 
     // Verify all documents belong to this company
     const unauthorizedDocs = documents.filter(
-      (doc) => doc.driver.companyId !== user.companyAdmin.id
+      (doc) => doc.driver.companyId !== user.companyId
     );
 
     if (unauthorizedDocs.length > 0) {
@@ -611,11 +729,44 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
 
     console.log(`Starting bulk AI scan for ${documents.length} documents`);
 
+    // Get company info for AI usage tracking
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true }
+    });
+
     // Scan all documents in parallel
     const scanResults = await Promise.all(
       documents.map(async (document) => {
         try {
           if (!document.s3Key) {
+            // Track failed attempt (no S3 key)
+            try {
+              await prisma.aIUsage.create({
+                data: {
+                  companyId,
+                  companyName: company?.name || 'Unknown',
+                  userId: user.id,
+                  userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+                  userEmail: user.email,
+                  feature: 'DOCUMENT_ANALYSIS',
+                  action: 'Bulk AI scan - no S3 key',
+                  tokensUsed: 0,
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cost: 0,
+                  status: 'FAILED',
+                  errorMessage: 'Document has no S3 key',
+                  errorCode: 'NO_S3_KEY',
+                  metadata: { documentId: document.id, documentType: document.type },
+                  ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+                  userAgent: req.headers['user-agent']
+                }
+              });
+            } catch (trackingError) {
+              console.error('⚠️ Failed to track failed AI usage:', trackingError);
+            }
+
             return {
               documentId: document.id,
               success: false,
@@ -627,7 +778,48 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
           const textractData = await extractDocumentData(document.s3Key);
 
           console.log(`Parsing document ${document.id} with OpenAI...`);
-          const parsedData = await parseWithAI(textractData, document.type);
+          const parseResult = await parseWithAI(textractData, document.type);
+          const parsedData = parseResult.parsedData;
+          const usage = parseResult.usage;
+
+          // Track successful AI usage
+          try {
+            // Calculate cost for GPT-4o-mini
+            const inputCost = (usage.promptTokens / 1_000_000) * 0.150;
+            const outputCost = (usage.completionTokens / 1_000_000) * 0.600;
+            const totalCost = inputCost + outputCost;
+
+            await prisma.aIUsage.create({
+              data: {
+                companyId,
+                companyName: company?.name || 'Unknown',
+                userId: user.id,
+                userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+                userEmail: user.email,
+                feature: 'DOCUMENT_ANALYSIS',
+                action: `Bulk AI scan of ${document.type || 'document'}`,
+                tokensUsed: usage.totalTokens,
+                inputTokens: usage.promptTokens,
+                outputTokens: usage.completionTokens,
+                cost: totalCost,
+                model: usage.model,
+                provider: 'openai',
+                requestDuration: usage.requestDuration,
+                status: 'SUCCESS',
+                metadata: {
+                  documentId: document.id,
+                  documentType: document.type,
+                  s3Key: document.s3Key,
+                  bulkScan: true
+                },
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+                userAgent: req.headers['user-agent']
+              }
+            });
+            console.log(`✅ AI usage tracked for document ${document.id}`);
+          } catch (trackingError) {
+            console.error(`⚠️ Failed to track AI usage for document ${document.id}:`, trackingError);
+          }
 
           return {
             documentId: document.id,
@@ -637,6 +829,38 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
           };
         } catch (error) {
           console.error(`Error scanning document ${document.id}:`, error);
+
+          // Track failed AI usage
+          try {
+            await prisma.aIUsage.create({
+              data: {
+                companyId,
+                companyName: company?.name || 'Unknown',
+                userId: user.id,
+                userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+                userEmail: user.email,
+                feature: 'DOCUMENT_ANALYSIS',
+                action: 'Bulk AI scan - failed',
+                tokensUsed: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                cost: 0,
+                status: 'FAILED',
+                errorMessage: error.message,
+                errorCode: error.code || 'SCAN_ERROR',
+                metadata: {
+                  documentId: document.id,
+                  documentType: document.type,
+                  bulkScan: true
+                },
+                ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+                userAgent: req.headers['user-agent']
+              }
+            });
+          } catch (trackingError) {
+            console.error(`⚠️ Failed to track failed AI usage for document ${document.id}:`, trackingError);
+          }
+
           return {
             documentId: document.id,
             success: false,
@@ -694,15 +918,14 @@ export const getCreditsBalance = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
     const company = await prisma.company.findUnique({
-      where: { id: user.companyAdmin.id },
+      where: { id: user.companyId },
       select: { aiCredits: true },
     });
 
@@ -737,10 +960,9 @@ export const getReminders = async (req, res) => {
     // Get user and company
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -773,7 +995,7 @@ export const getReminders = async (req, res) => {
     // Build where clause for documents
     const whereClause = {
       driver: {
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
       expiryDate: {
         not: null,
@@ -887,13 +1109,11 @@ export const getDocumentStatus = async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
       select: {
-        companyAdmin: {
-          select: { id: true }
-        }
+        companyId: true,
       },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: 'User or company not found' });
     }
 
@@ -907,7 +1127,7 @@ export const getDocumentStatus = async (req, res) => {
     const expiringThreshold = new Date(today);
     expiringThreshold.setDate(expiringThreshold.getDate() + 30);
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
 
     // Build base where clause
     const baseWhere = {

@@ -104,7 +104,7 @@ export const sendTestSMS = async (toPhone) => {
 
     const result = await client.messages
       .create({
-        body: 'This is a test SMS from Logilink.',
+        body: 'This is a test SMS from Complyo.',
         from: fromNumber,
         to: toPhone,
       })

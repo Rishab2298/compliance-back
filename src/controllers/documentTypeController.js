@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../../prisma/client.js';
 
 // Get all document types for a company
 export const getDocumentTypes = async (req, res) => {

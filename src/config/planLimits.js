@@ -30,7 +30,7 @@ const PLAN_LIMITS = {
     },
 
     // Display Info
-    description: 'Perfect for trying out Logilink',
+    description: 'Perfect for trying out Complyo',
     popular: false,
   },
 

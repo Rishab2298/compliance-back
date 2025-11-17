@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "DSPRole" AS ENUM ('ADMIN', 'COMPLIANCE_MANAGER', 'HR_LEAD', 'VIEWER', 'BILLING');
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "dspRole" "DSPRole";

@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client.js';
 import { getPlanLimits } from '../config/planLimits.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Script to manually fix the Professional plan upgrade

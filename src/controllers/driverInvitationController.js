@@ -1,10 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client.js';
 import crypto from 'crypto';
 import { sendDriverInvitationEmail } from '../services/emailService.js';
 import { sendDriverInvitationSMS } from '../services/smsService.js';
 import { generatePresignedUploadUrl } from '../services/s3Service.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Generate a secure random token for driver invitation

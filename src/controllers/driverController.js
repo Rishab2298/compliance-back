@@ -1,6 +1,8 @@
 import prisma from "../../prisma/client.js";
 import { z } from "zod";
 import { checkLimit } from '../services/billingService.js';
+import { getPlanLimits } from '../config/planLimits.js';
+import auditService from '../services/auditService.js';
 
 // Validation schema for creating a driver
 const createDriverSchema = z.object({
@@ -38,15 +40,17 @@ export const createDriver = async (req, res) => {
     // Find the user in the database
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    if (!user || !user.companyId) {
+      return res.status(404).json({ error: "User not found or not associated with a company" });
     }
 
     // Get the company
-    const company = user.companyAdmin;
+    const company = await prisma.company.findUnique({
+      where: { id: user.companyId },
+    });
+
     if (!company) {
       return res.status(404).json({ error: "Company not found. Please complete onboarding first." });
     }
@@ -78,6 +82,25 @@ export const createDriver = async (req, res) => {
     });
 
     console.log("Driver created:", driver.id);
+
+    // Log the driver creation
+    await auditService.logDriverOperation({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: company.id,
+      action: "DRIVER_CREATED",
+      driverId: driver.id,
+      driverName: driver.name,
+      newValues: {
+        name: driver.name,
+        email: driver.email,
+        phone: driver.phone,
+        contact: driver.contact,
+      },
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+    });
 
     // Return success response
     return res.status(201).json({
@@ -122,17 +145,15 @@ export const getDrivers = async (req, res) => {
       where: { clerkUserId: userId },
       select: {
         id: true,
-        companyAdmin: {
-          select: { id: true }
-        }
+        companyId: true,
       },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const companyId = user.companyAdmin.id;
+    const companyId = user.companyId;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
@@ -207,17 +228,16 @@ export const getDriverById = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
     const driver = await prisma.driver.findFirst({
       where: {
         id,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
       include: {
         documents: {
@@ -265,10 +285,9 @@ export const updateDriver = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
@@ -276,7 +295,7 @@ export const updateDriver = async (req, res) => {
     const existingDriver = await prisma.driver.findFirst({
       where: {
         id,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
     });
 
@@ -301,6 +320,32 @@ export const updateDriver = async (req, res) => {
           },
         },
       },
+    });
+
+    // Log the driver update
+    await auditService.logDriverOperation({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: user.companyId,
+      action: "DRIVER_UPDATED",
+      driverId: id,
+      driverName: updatedDriver.name,
+      oldValues: {
+        name: existingDriver.name,
+        email: existingDriver.email,
+        phone: existingDriver.phone,
+        contact: existingDriver.contact,
+      },
+      newValues: {
+        name: updatedDriver.name,
+        email: updatedDriver.email,
+        phone: updatedDriver.phone,
+        contact: updatedDriver.contact,
+      },
+      changes: Object.keys(updateData),
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
     });
 
     return res.status(200).json({
@@ -337,10 +382,9 @@ export const deleteDriver = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
@@ -348,7 +392,7 @@ export const deleteDriver = async (req, res) => {
     const existingDriver = await prisma.driver.findFirst({
       where: {
         id,
-        companyId: user.companyAdmin.id,
+        companyId: user.companyId,
       },
     });
 
@@ -374,11 +418,139 @@ export const deleteDriver = async (req, res) => {
       });
     });
 
+    // Log the driver deletion
+    await auditService.logDriverOperation({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: user.companyId,
+      action: "DRIVER_DELETED",
+      driverId: id,
+      driverName: existingDriver.name,
+      oldValues: {
+        name: existingDriver.name,
+        email: existingDriver.email,
+        phone: existingDriver.phone,
+        contact: existingDriver.contact,
+      },
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+    });
+
     return res.status(200).json({
       message: "Driver deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting driver:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Bulk create drivers from CSV import
+ * POST /api/drivers/bulk-import
+ */
+export const bulkImportDrivers = async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+    const { drivers } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized - No user found" });
+    }
+
+    if (!Array.isArray(drivers) || drivers.length === 0) {
+      return res.status(400).json({ error: "Invalid request - drivers array is required" });
+    }
+
+    // Find the user in the database
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+
+    if (!user || !user.companyId) {
+      return res.status(404).json({ error: "User not found or not associated with a company" });
+    }
+
+    // Get the company
+    const company = await prisma.company.findUnique({
+      where: { id: user.companyId },
+    });
+
+    if (!company) {
+      return res.status(404).json({ error: "Company not found. Please complete onboarding first." });
+    }
+
+    const results = {
+      successful: [],
+      failed: [],
+      limitReached: false,
+    };
+
+    // Process each driver
+    for (const driverData of drivers) {
+      try {
+        // Validate driver data
+        const validatedData = createDriverSchema.parse(driverData);
+
+        // Check driver limit
+        const limitCheck = await checkLimit(company.id, 'drivers');
+        if (!limitCheck.allowed) {
+          results.limitReached = true;
+          results.failed.push({
+            ...driverData,
+            error: limitCheck.message,
+          });
+          break;
+        }
+
+        // Create the driver
+        const driver = await prisma.driver.create({
+          data: {
+            companyId: company.id,
+            name: `${validatedData.firstName} ${validatedData.lastName}`,
+            email: validatedData.email,
+            phone: validatedData.phone,
+            contact: validatedData.employeeId,
+          },
+        });
+
+        results.successful.push({
+          id: driver.id,
+          name: driver.name,
+          email: driver.email,
+        });
+      } catch (error) {
+        results.failed.push({
+          ...driverData,
+          error: error.message,
+        });
+      }
+    }
+
+    // Log the CSV import
+    await auditService.logCSVImport({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      companyId: company.id,
+      resourceType: "Driver",
+      recordCount: drivers.length,
+      successCount: results.successful.length,
+      failedCount: results.failed.length,
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.status(200).json({
+      message: `Bulk import completed. ${results.successful.length} drivers created, ${results.failed.length} failed.`,
+      results,
+    });
+  } catch (error) {
+    console.error("Error in bulk import:", error);
     return res.status(500).json({
       error: "Internal server error",
       message: error.message,
@@ -401,16 +573,15 @@ export const getDocumentCounts = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
     });
 
-    if (!user || !user.companyAdmin) {
+    if (!user || !user.companyId) {
       return res.status(404).json({ error: "User or company not found" });
     }
 
     // Get all drivers for this company
     const drivers = await prisma.driver.findMany({
-      where: { companyId: user.companyAdmin.id },
+      where: { companyId: user.companyId },
       select: { id: true },
     });
 

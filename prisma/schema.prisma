@@ -8,24 +8,43 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  clerkUserId  String   @unique
-  email        String   @unique
-  firstName    String?
-  lastName     String?
-  role         Role     @default(ADMIN)
-  companyId    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  companyAdmin Company? @relation("CompanyAdmin")
-  companyUser  Company? @relation("CompanyUsers", fields: [companyId], references: [id])
+  id          String  @id @default(uuid())
+  clerkUserId String  @unique
+  email       String  @unique
+  firstName   String?
+  lastName    String?
+  role        Role    @default(ADMIN)
+  companyId   String?
+
+  // DSP Team Role (for granular permissions within a company)
+  dspRole DSPRole? // null for SUPER_ADMIN, required for company users
+
+  // MFA Fields
+  mfaEnabled      Boolean   @default(false)
+  totpSecret      String? // Encrypted TOTP secret
+  totpVerified    Boolean   @default(false)
+  backupCodesHash String? // JSON array of hashed backup codes
+  mfaEnrolledAt   DateTime? // When user enrolled in MFA
+
+  // Policy Acceptance (for team members)
+  policiesAccepted   Boolean   @default(false) // true when all required policies accepted
+  policiesAcceptedAt DateTime? // When policies were accepted
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyAdmin      Company?               @relation("CompanyAdmin")
+  companyUser       Company?               @relation("CompanyUsers", fields: [companyId], references: [id])
+  mfaAttempts       MFAAttempt[]
+  policies          Policy[]
+  policyAcceptances UserPolicyAcceptance[]
 }
 
 model Company {
-  id                     String              @id @default(uuid())
+  id                     String   @id @default(uuid())
   name                   String
-  adminUserId            String              @unique
-  plan                   String              @default("Free")
+  adminUserId            String   @unique
+  plan                   String   @default("Free")
   companySize            String?
   operatingRegion        String?
   statesProvinces        String[]
@@ -34,43 +53,69 @@ model Company {
   notificationRecipients String[]
   adminEmail             String?
   adminPhone             String?
-  onboardingCompleted    Boolean             @default(false)
-  aiCredits              Int                 @default(5)
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  documentTypes          String[]            @default([])
-  reminderDays           String[]            @default([])
+  onboardingCompleted    Boolean  @default(false)
+  aiCredits              Int      @default(5)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  documentTypes          String[] @default([])
+  reminderDays           String[] @default([])
+
+  // Extended Company Information (from onboarding)
+  legalCompanyName           String? // Legal registered name
+  operatingName              String? // DBA / Operating name
+  country                    String?
+  entityType                 String? // LLC, Corporation, Partnership, etc.
+  businessRegistrationNumber String?
+  registeredAddress          Json? // {street, city, state, postalCode, country}
+  operatingAddresses         Json? // Array of address objects
+  companyWebsite             String?
+  adminFullName              String?
+
+  // DSP Specific Information
+  isAmazonDSP     Boolean   @default(false)
+  dspCompanyName  String?
+  stationCodes    String[]  @default([])
+  dspOwnerName    String?
+  opsManagerName  String?
+  dspId           String?
+
+  // Billing Contact Information
+  paymentMethod       String?
+  billingContactName  String?
+  billingContactEmail String?
+  billingAddress      Json? // {street, city, state, postalCode, country}
 
   // Billing & Subscription Fields
-  stripeCustomerId       String?             @unique
-  stripeSubscriptionId   String?             @unique
-  stripePriceId          String?
-  billingCycle           BillingCycle?
-  planStartDate          DateTime?
-  nextBillingDate        DateTime?
-  subscriptionStatus     SubscriptionStatus  @default(ACTIVE)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  billingCycle         BillingCycle?
+  planStartDate        DateTime?
+  nextBillingDate      DateTime?
+  subscriptionStatus   SubscriptionStatus @default(ACTIVE)
 
   // Feature Flags (derived from plan)
-  smsEnabled             Boolean             @default(false)
-  emailEnabled           Boolean             @default(true)
+  smsEnabled   Boolean @default(false)
+  emailEnabled Boolean @default(true)
 
   // Usage Tracking
-  monthlyCreditsUsed     Int                 @default(0)
-  monthlyDocsProcessed   Int                 @default(0)
-  lastCreditRefillDate   DateTime?
+  monthlyCreditsUsed   Int       @default(0)
+  monthlyDocsProcessed Int       @default(0)
+  lastCreditRefillDate DateTime?
 
   // Downgrade Grace Period
-  pendingPlanChange      String?
-  planChangeDate         DateTime?
-  planChangeReason       String?
+  pendingPlanChange String?
+  planChangeDate    DateTime?
+  planChangeReason  String?
 
   // Relations
-  adminUser              User                @relation("CompanyAdmin", fields: [adminUserId], references: [id])
-  drivers                Driver[]
-  reminders              Reminder[]
-  User                   User[]              @relation("CompanyUsers")
-  billingHistory         BillingHistory[]
-  creditTransactions     CreditTransaction[]
+  adminUser          User                @relation("CompanyAdmin", fields: [adminUserId], references: [id])
+  drivers            Driver[]
+  reminders          Reminder[]
+  customReminders    CustomReminder[]
+  User               User[]              @relation("CompanyUsers")
+  billingHistory     BillingHistory[]
+  creditTransactions CreditTransaction[]
 }
 
 model Driver {
@@ -148,6 +193,27 @@ model Reminder {
   company     Company         @relation(fields: [companyId], references: [id])
 }
 
+model CustomReminder {
+  id               String            @id @default(uuid())
+  companyId        String
+  title            String
+  description      String?
+  triggerDate      DateTime
+  frequency        ReminderFrequency @default(ONCE)
+  notificationType NotificationType  @default(BOTH)
+  priority         ReminderPriority  @default(NORMAL)
+  lastSent         DateTime?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([triggerDate])
+  @@index([isActive])
+  @@index([companyId, isActive, triggerDate])
+}
+
 enum TextractStatus {
   PENDING
   UPLOADING
@@ -179,28 +245,55 @@ enum Role {
   DRIVER
 }
 
+enum DSPRole {
+  ADMIN // Full access to everything
+  COMPLIANCE_MANAGER // All except user/billing management
+  HR_LEAD // All except user/billing management and document deletion
+  VIEWER // Read-only audit log access
+  BILLING // Billing management + billing audit logs only
+}
+
 enum ReminderChannel {
   EMAIL
   SMS
 }
 
+enum ReminderFrequency {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  BOTH
+}
+
+enum ReminderPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
 model DriverInvitation {
-  id                    String           @id @default(uuid())
-  driverId              String           @unique
-  token                 String           @unique
-  email                 String?
-  phone                 String?
-  requestedDocuments    String[]
-  status                InvitationStatus @default(PENDING)
-  expiresAt             DateTime
-  completedAt           DateTime?
-  emailSentAt           DateTime?
-  smsSentAt             DateTime?
-  linkAccessedAt        DateTime?
-  documentsUploadedAt   DateTime?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  driver                Driver           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id                  String           @id @default(uuid())
+  driverId            String           @unique
+  token               String           @unique
+  email               String?
+  phone               String?
+  requestedDocuments  String[]
+  status              InvitationStatus @default(PENDING)
+  expiresAt           DateTime
+  completedAt         DateTime?
+  emailSentAt         DateTime?
+  smsSentAt           DateTime?
+  linkAccessedAt      DateTime?
+  documentsUploadedAt DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  driver              Driver           @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([status])
@@ -214,6 +307,42 @@ enum InvitationStatus {
   COMPLETED
   EXPIRED
   CANCELLED
+}
+
+model TeamInvitation {
+  id               String               @id @default(uuid())
+  companyId        String
+  email            String
+  firstName        String?              // Invited user's first name
+  lastName         String?              // Invited user's last name
+  dspRole          DSPRole
+  invitedById      String
+  status           TeamInvitationStatus @default(PENDING)
+  clerkSignInToken String?              // The Clerk sign-in token URL
+  clerkUserId      String?              // Clerk user ID once created
+  userId           String?              // Database user ID once created
+  expiresAt        DateTime
+  emailSentAt      DateTime?
+  acceptedAt       DateTime?
+  rejectedAt       DateTime?
+  errorMessage     String?              // If email failed to send
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+  @@index([status])
+  @@index([invitedById])
+  @@index([createdAt])
+}
+
+enum TeamInvitationStatus {
+  PENDING // Created but email not sent yet
+  SENT // Email sent successfully
+  ACCEPTED // User logged in and accepted
+  REJECTED // User declined or admin cancelled
+  EXPIRED // Invitation expired
+  FAILED // Email failed to send
 }
 
 enum BillingCycle {
@@ -238,41 +367,489 @@ enum TransactionType {
 }
 
 model BillingHistory {
-  id                   String   @id @default(uuid())
-  companyId            String
-  invoiceNumber        String   @unique
-  plan                 String?
-  amount               Float
-  status               String   @default("PENDING")
-  paidAt               DateTime?
-  billingPeriodStart   DateTime?
-  billingPeriodEnd     DateTime?
-  stripeInvoiceId      String?  @unique
+  id                    String    @id @default(uuid())
+  companyId             String
+  invoiceNumber         String    @unique
+  plan                  String?
+  amount                Float
+  status                String    @default("PENDING")
+  paidAt                DateTime?
+  billingPeriodStart    DateTime?
+  billingPeriodEnd      DateTime?
+  stripeInvoiceId       String?   @unique
   stripePaymentIntentId String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([status])
 }
 
 model CreditTransaction {
-  id             String          @id @default(uuid())
-  companyId      String
-  type           TransactionType
-  amount         Int
-  balanceBefore  Int
-  balanceAfter   Int
-  documentId     String?
-  reason         String?
-  metadata       Json?
-  createdAt      DateTime        @default(now())
+  id            String          @id @default(uuid())
+  companyId     String
+  type          TransactionType
+  amount        Int
+  balanceBefore Int
+  balanceAfter  Int
+  documentId    String?
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime        @default(now())
 
-  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([type])
   @@index([createdAt])
+}
+
+// ============================================
+// MFA (Multi-Factor Authentication) MODELS
+// ============================================
+
+model MFAAttempt {
+  id            String    @id @default(uuid())
+  userId        String
+  method        MFAMethod
+  success       Boolean
+  ipAddress     String?
+  userAgent     String?
+  failureReason String? // e.g., "Invalid code", "Expired code"
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([success])
+  @@index([createdAt])
+}
+
+enum MFAMethod {
+  TOTP
+  BACKUP_CODE
+}
+
+// ============================================
+// AUDIT LOGGING & COMPLIANCE MODELS
+// ============================================
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  // Who performed the action
+  userId    String?
+  userEmail String?
+  userName  String?
+  companyId String?
+
+  // What action was performed
+  action     AuditAction
+  resource   String // e.g., "Driver", "Document", "Company"
+  resourceId String? // ID of the affected resource
+
+  // Context of the action
+  method     String? // HTTP method: GET, POST, PUT, DELETE
+  endpoint   String? // API endpoint called
+  statusCode Int? // HTTP status code
+
+  // Request details
+  ipAddress String?
+  userAgent String?
+  region    String? // US or CA
+
+  // What changed (for UPDATE/DELETE operations)
+  oldValues Json? // Previous state
+  newValues Json? // New state
+  changes   String[] // Array of changed field names
+
+  // Additional metadata
+  metadata     Json? // Any extra context
+  errorMessage String? // If action failed
+
+  // Compliance fields
+  severity AuditSeverity @default(INFO)
+  category AuditCategory @default(GENERAL)
+
+  // Timestamps
+  timestamp DateTime @default(now())
+
+  // Immutability & Integrity (Blockchain-style)
+  hash         String? // SHA-256 hash of this log entry
+  previousHash String? // Hash of the previous log (chain integrity)
+  sequenceNum  BigInt  @default(autoincrement()) // Detect gaps/deletions
+  verified     Boolean @default(false) // Mark as verified after hash calculation
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([action])
+  @@index([resource])
+  @@index([resourceId])
+  @@index([timestamp])
+  @@index([severity])
+  @@index([category])
+  @@index([companyId, timestamp])
+  @@index([userId, timestamp])
+  @@index([sequenceNum]) // For integrity verification
+  @@index([companyId, sequenceNum]) // Company-specific integrity checks
+}
+
+model SecurityEvent {
+  id String @id @default(uuid())
+
+  // Who/What triggered the event
+  userId    String?
+  userEmail String?
+  companyId String?
+
+  // Event details
+  eventType SecurityEventType
+  severity  SecuritySeverity  @default(LOW)
+
+  // Context
+  ipAddress String?
+  userAgent String?
+  location  String? // Geolocation if available
+
+  // Details
+  description String
+  metadata    Json?
+
+  // Response
+  blocked     Boolean @default(false)
+  actionTaken String? // e.g., "Account locked", "IP blocked"
+
+  // Timestamps
+  timestamp DateTime @default(now())
+
+  // Immutability & Integrity
+  hash         String?
+  previousHash String?
+  sequenceNum  BigInt  @default(autoincrement())
+  verified     Boolean @default(false)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([timestamp])
+  @@index([blocked])
+  @@index([sequenceNum])
+  @@index([companyId, sequenceNum])
+}
+
+model DataAccessLog {
+  id String @id @default(uuid())
+
+  // Who accessed the data
+  userId    String
+  userEmail String
+  companyId String?
+
+  // What data was accessed
+  dataType    String // e.g., "Driver", "Document", "PersonalInfo"
+  dataId      String // ID of the accessed resource
+  dataOwnerId String? // If accessing someone else's data
+
+  // How it was accessed
+  accessType AccessType
+  operation  String // "VIEW", "DOWNLOAD", "EXPORT", "PRINT"
+
+  // Purpose (GDPR requirement)
+  purpose String? // Why was this data accessed
+
+  // Context
+  ipAddress String?
+  endpoint  String?
+
+  // Timestamps
+  timestamp DateTime @default(now())
+
+  // Immutability & Integrity
+  hash         String?
+  previousHash String?
+  sequenceNum  BigInt  @default(autoincrement())
+  verified     Boolean @default(false)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([dataType])
+  @@index([dataId])
+  @@index([timestamp])
+  @@index([accessType])
+  @@index([sequenceNum])
+  @@index([companyId, sequenceNum])
+}
+
+// ============================================
+// AUDIT ENUMS
+// ============================================
+
+enum AuditAction {
+  // Authentication & MFA
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  MFA_ENABLED
+  MFA_DISABLED
+  MFA_VERIFIED
+  MFA_FAILED
+  BACKUP_CODES_GENERATED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+
+  // Data Operations
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  BULK_CREATE
+  BULK_UPDATE
+  BULK_DELETE
+
+  // Document Operations
+  DOCUMENT_UPLOADED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_VIEWED
+  DOCUMENT_DELETED
+  DOCUMENT_PROCESSED
+
+  // Driver Operations
+  DRIVER_CREATED
+  DRIVER_UPDATED
+  DRIVER_DELETED
+  DRIVER_INVITED
+  DRIVER_ACCESSED_PORTAL
+
+  // Billing Operations
+  PLAN_UPGRADED
+  PLAN_DOWNGRADED
+  PAYMENT_PROCESSED
+  CREDITS_PURCHASED
+  CREDITS_USED
+
+  // Admin Operations
+  SETTINGS_UPDATED
+
+  // Team Management Operations (DSP RBAC)
+  TEAM_MEMBER_INVITED
+  TEAM_MEMBER_ROLE_UPDATED
+  TEAM_MEMBER_REMOVED
+  TEAM_LIST_VIEWED
+
+  // Reminder/Compliance Configuration
+  REMINDER_CONFIGURED
+  REMINDER_UPDATED
+  REMINDER_DELETED
+  REMINDER_SENT
+
+  // Compliance Operations
+  DATA_EXPORTED
+  AUDIT_LOG_VIEWED
+  AUDIT_LOG_EXPORTED
+  AUDIT_LOG_ACCESSED
+
+  // Security Events
+  ACCESS_DENIED
+  PERMISSION_DENIED
+  SUSPICIOUS_ACTIVITY
+  RATE_LIMIT_EXCEEDED
+}
+
+enum AuditCategory {
+  AUTHENTICATION
+  AUTHORIZATION
+  DATA_ACCESS
+  DATA_MODIFICATION
+  BILLING
+  SECURITY
+  COMPLIANCE
+  MFA
+  USER_MANAGEMENT
+  GENERAL
+}
+
+enum AuditSeverity {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum SecurityEventType {
+  FAILED_LOGIN
+  MULTIPLE_FAILED_LOGINS
+  MULTIPLE_FAILED_MFA
+  ACCOUNT_LOCKED
+  UNAUTHORIZED_ACCESS_ATTEMPT
+  SUSPICIOUS_ACTIVITY
+  RATE_LIMIT_EXCEEDED
+}
+
+enum SecuritySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AccessType {
+  READ
+  WRITE
+  DELETE
+  EXPORT
+}
+
+// ============================================
+// POLICY MANAGEMENT MODELS
+// ============================================
+
+model Policy {
+  id String @id @default(uuid())
+
+  // Policy identification
+  type    PolicyType
+  version String // Auto-generated: "1.0.0", "1.0.1", etc.
+
+  // Content
+  content     String @db.Text // Rich text content
+  contentHash String // SHA-256 hash of content
+
+  // Publishing
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  // Audit trail
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  acceptances UserPolicyAcceptance[]
+
+  @@unique([type, version])
+  @@index([type])
+  @@index([type, isPublished])
+  @@index([type, version])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+model UserPolicyAcceptance {
+  id String @id @default(uuid())
+
+  // User & Policy
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id])
+
+  // Policy details at time of acceptance
+  policyType    PolicyType
+  policyVersion String
+  contentHash   String? // SHA-256 hash of exact disclosure text
+
+  // Acceptance details
+  acceptedAt DateTime @default(now())
+  ipAddress  String?
+  region     String? // Region inferred from IP address
+  userAgent  String?
+  userEmail  String? // User email at time of acceptance
+
+  // Metadata
+  companyId   String? // Track which company the user was part of
+  isMandatory Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, policyId])
+  @@index([userId])
+  @@index([policyId])
+  @@index([policyType])
+  @@index([userId, policyType])
+  @@index([acceptedAt])
+}
+
+enum PolicyType {
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  DATA_PROCESSING_AGREEMENT
+  SMS_CONSENT
+  COOKIE_PREFERENCES
+  SUPPORT_ACCESS
+}
+
+// ============================================
+// AI USAGE TRACKING MODELS
+// ============================================
+
+model AIUsage {
+  id String @id @default(uuid())
+
+  // Company & User tracking
+  companyId   String
+  companyName String
+  userId      String
+  userName    String
+  userEmail   String
+
+  // AI feature tracking
+  feature AIFeature // Which AI feature was used
+  action  String // Specific action taken
+
+  // Usage metrics
+  tokensUsed   Int   @default(0)
+  inputTokens  Int   @default(0)
+  outputTokens Int   @default(0)
+  cost         Float @default(0) // Estimated cost in USD
+
+  // Request details
+  model           String? // AI model used (e.g., "gpt-4", "claude-3")
+  provider        String? // AI provider (e.g., "openai", "anthropic")
+  requestDuration Int? // Duration in milliseconds
+  status          AIUsageStatus @default(SUCCESS)
+
+  // Error tracking
+  errorMessage String?
+  errorCode    String?
+
+  // Metadata
+  metadata  Json? // Additional context
+  ipAddress String?
+  userAgent String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([feature])
+  @@index([status])
+  @@index([createdAt])
+  @@index([companyId, createdAt])
+  @@index([feature, createdAt])
+}
+
+enum AIFeature {
+  DOCUMENT_ANALYSIS // AI-powered document scanning/extraction
+  SMART_UPLOAD // Smart upload features
+  DATA_VALIDATION // AI data validation
+  COMPLIANCE_CHECK // AI compliance checking
+  CHAT_SUPPORT // AI chat/support features
+  TEXT_GENERATION // AI text generation
+  OTHER // Other AI features
+}
+
+enum AIUsageStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+  TIMEOUT
 }

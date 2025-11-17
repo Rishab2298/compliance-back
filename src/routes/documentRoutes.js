@@ -12,42 +12,46 @@ import {
   getReminders,
   getDocumentStatus,
 } from '../controllers/documentController.js';
+import { requireCapability } from '../middleware/dspPermissionMiddleware.js';
 
 const router = express.Router();
 
-// All routes require authentication (handled by Clerk middleware)
+/**
+ * Document Routes with DSP Permission Checks
+ * All routes require authentication (handled by authMiddleware in server.js)
+ */
 
-// Get reminders (documents expiring soon)
-router.get('/reminders', getReminders);
+// Get reminders (requires upload_documents to view documents)
+router.get('/reminders', requireCapability("upload_documents"), getReminders);
 
-// Get document status (filtered by expiry status)
-router.get('/document-status', getDocumentStatus);
+// Get document status (requires upload_documents)
+router.get('/document-status', requireCapability("upload_documents"), getDocumentStatus);
 
-// Get AI credits balance
-router.get('/credits', getCreditsBalance);
+// Get AI credits balance (requires upload_documents)
+router.get('/credits', requireCapability("upload_documents"), getCreditsBalance);
 
-// Bulk AI scan multiple documents
-router.post('/bulk-ai-scan', bulkScanDocumentsWithAI);
+// Bulk AI scan multiple documents (requires upload_documents)
+router.post('/bulk-ai-scan', requireCapability("upload_documents"), bulkScanDocumentsWithAI);
 
-// Generate presigned URLs for upload
-router.post('/presigned-urls/:driverId', generatePresignedUrls);
+// Generate presigned URLs for upload (requires upload_documents capability)
+router.post('/presigned-urls/:driverId', requireCapability("upload_documents"), generatePresignedUrls);
 
-// Create document record after upload
-router.post('/:driverId', createDocument);
+// Create document record after upload (requires upload_documents capability)
+router.post('/:driverId', requireCapability("upload_documents"), createDocument);
 
-// Update document details (manual entry or AI scan)
-router.put('/:documentId', updateDocumentDetails);
+// Update document details (requires upload_documents capability)
+router.put('/:documentId', requireCapability("upload_documents"), updateDocumentDetails);
 
-// Get all documents for a driver
-router.get('/driver/:driverId', getDriverDocuments);
+// Get all documents for a driver (requires upload_documents to view)
+router.get('/driver/:driverId', requireCapability("upload_documents"), getDriverDocuments);
 
-// Get presigned download URL
-router.get('/:documentId/download-url', getDocumentDownloadUrl);
+// Get presigned download URL (requires upload_documents to download)
+router.get('/:documentId/download-url', requireCapability("upload_documents"), getDocumentDownloadUrl);
 
-// AI scan document
-router.post('/:documentId/ai-scan', scanDocumentWithAI);
+// AI scan document (requires upload_documents capability)
+router.post('/:documentId/ai-scan', requireCapability("upload_documents"), scanDocumentWithAI);
 
-// Delete document
-router.delete('/:documentId', deleteDocument);
+// Delete document (requires delete_documents capability - stricter permission)
+router.delete('/:documentId', requireCapability("delete_documents"), deleteDocument);
 
 export default router;

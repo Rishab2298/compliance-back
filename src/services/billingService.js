@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client.js';
 import { getPlanLimits, isUnlimited, canDowngrade } from '../config/planLimits.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Billing Service
@@ -364,13 +362,26 @@ async function upgradePlan(companyId, newPlan, paymentInfo = {}) {
 
     // Calculate new credit balance
     let newCreditBalance = company.aiCredits
+    let creditsAdded = 0
 
-    // If upgrading from Free, add new plan's credits to existing balance
+    // If upgrading from Free plan
     if (oldPlan === 'Free') {
-      newCreditBalance = company.aiCredits + newLimits.initialAICredits
+      // If user has exactly 5 credits (unused Free plan credits), REPLACE them with new plan's credits
+      if (company.aiCredits === 5) {
+        newCreditBalance = newLimits.initialAICredits
+        creditsAdded = newLimits.initialAICredits
+        console.log(`🔄 Replacing Free plan credits (5) with ${newPlan} plan credits (${newLimits.initialAICredits})`)
+      } else {
+        // If they've used some credits, ADD the new plan's credits to remaining balance
+        newCreditBalance = company.aiCredits + newLimits.initialAICredits
+        creditsAdded = newLimits.initialAICredits
+        console.log(`➕ Adding ${newPlan} plan credits (${newLimits.initialAICredits}) to existing balance (${company.aiCredits})`)
+      }
     } else {
       // For paid to paid upgrades, add new plan's monthly credits
       newCreditBalance = company.aiCredits + newLimits.monthlyAICredits
+      creditsAdded = newLimits.monthlyAICredits
+      console.log(`⬆️ Upgrading from ${oldPlan} to ${newPlan}, adding ${creditsAdded} credits`)
     }
 
     // Update company with new plan
@@ -384,6 +395,9 @@ async function upgradePlan(companyId, newPlan, paymentInfo = {}) {
         smsEnabled: newLimits.features.sms,
         emailEnabled: newLimits.features.email,
         subscriptionStatus: 'ACTIVE',
+        pendingPlanChange: null, // Clear pending change after successful upgrade
+        planChangeDate: null,
+        planChangeReason: null,
         ...paymentInfo, // stripeCustomerId, stripeSubscriptionId, etc.
       }
     })
@@ -393,24 +407,26 @@ async function upgradePlan(companyId, newPlan, paymentInfo = {}) {
       data: {
         companyId,
         type: 'BONUS',
-        amount: newLimits.monthlyAICredits,
+        amount: creditsAdded,
         balanceBefore: company.aiCredits,
         balanceAfter: newCreditBalance,
         reason: `Plan upgrade from ${oldPlan} to ${newPlan}`,
         metadata: {
           oldPlan,
-          newPlan
+          newPlan,
+          replacedFreeCredits: oldPlan === 'Free' && company.aiCredits === 5
         }
       }
     })
 
     console.log(`✅ Upgraded company ${companyId} from ${oldPlan} to ${newPlan}`)
+    console.log(`💰 Credits: ${company.aiCredits} → ${newCreditBalance} (${creditsAdded >= 0 ? '+' : ''}${creditsAdded})`)
 
     return {
       success: true,
       oldPlan,
       newPlan,
-      creditsAdded: newLimits.monthlyAICredits,
+      creditsAdded: creditsAdded,
       newBalance: newCreditBalance,
       company: updatedCompany
     }

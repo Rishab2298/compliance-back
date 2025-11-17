@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../prisma/client.js';
 import {
   purchaseCredits,
   upgradePlan,
@@ -11,8 +11,6 @@ import {
   createCreditPurchaseCheckout,
   createBillingPortalSession,
 } from '../services/stripeService.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Get all available plans
@@ -215,6 +213,11 @@ export const upgrade = async (req, res) => {
     const userId = req.auth?.userId;
     const { targetPlan, billingCycle = 'monthly' } = req.body;
 
+    console.log("=== Billing Upgrade Request ===");
+    console.log("User ID (Clerk):", userId);
+    console.log("Target Plan:", targetPlan);
+    console.log("Billing Cycle:", billingCycle);
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized - No user ID found' });
     }
@@ -227,16 +230,50 @@ export const upgrade = async (req, res) => {
     }
 
     // Get user and company
+    console.log("Fetching user from database...");
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      include: { companyAdmin: true },
+      include: {
+        companyAdmin: true,
+        companyUser: true,
+      },
     });
 
-    if (!user || !user.companyAdmin) {
-      return res.status(404).json({ error: 'User or company not found' });
+    console.log("User found:", {
+      userId: user?.id,
+      companyId: user?.companyId,
+      hasCompanyAdmin: !!user?.companyAdmin,
+      companyAdminId: user?.companyAdmin?.id,
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    const company = user.companyAdmin;
+    // Try to get company from admin relationship first, then from user relationship
+    let company = user.companyAdmin;
+
+    if (!company && user.companyId) {
+      // If companyAdmin relation isn't populated yet, try direct lookup
+      console.log('CompanyAdmin relation not found, trying direct lookup for companyId:', user.companyId);
+      company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+      });
+    }
+
+    if (!company) {
+      console.error('No company found for user during upgrade:', {
+        userId,
+        companyAdmin: !!user.companyAdmin,
+        companyId: user.companyId,
+      });
+      return res.status(404).json({
+        error: 'Company not found',
+        message: 'Please complete onboarding first or try refreshing the page',
+      });
+    }
+
+    console.log('Found company for upgrade:', { companyId: company.id, currentPlan: company.plan });
 
     // Validate upgrade path
     const planTiers = ['Free', 'Starter', 'Professional', 'Enterprise'];
@@ -267,6 +304,11 @@ export const upgrade = async (req, res) => {
 
     // Create Stripe checkout session for subscription
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    console.log("Creating Stripe checkout session...");
+    console.log("Success URL:", `${frontendUrl}/client/billing/success?session_id={CHECKOUT_SESSION_ID}`);
+    console.log("Cancel URL:", `${frontendUrl}/client/billing/cancel`);
+
     const session = await createSubscriptionCheckout(
       company.id,
       targetPlan,
@@ -274,6 +316,9 @@ export const upgrade = async (req, res) => {
       `${frontendUrl}/client/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       `${frontendUrl}/client/billing/cancel`
     );
+
+    console.log("✅ Stripe checkout session created:", session.id);
+    console.log("Checkout URL:", session.url);
 
     return res.status(200).json({
       success: true,
@@ -286,10 +331,15 @@ export const upgrade = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error creating upgrade checkout:', error);
+    console.error("❌ Error creating upgrade checkout:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+
     return res.status(500).json({
-      error: 'Internal server error',
+      error: error.message || 'Internal server error',
       message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };
