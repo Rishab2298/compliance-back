@@ -181,8 +181,8 @@ app.use("/api/company", authMiddleware, requireMFA, companyRoutes);
 // Reminder routes
 app.use("/api/reminders", authMiddleware, requireMFA, requirePolicyAcceptance, reminderRoutes);
 
-// Billing routes
-app.use("/api/billing", authMiddleware, requireMFA, requirePolicyAcceptance, billingRoutes);
+// Billing routes (MFA selectively applied per route in billingRoutes.js - some routes need to work during onboarding)
+app.use("/api/billing", authMiddleware, requirePolicyAcceptance, billingRoutes);
 
 // Dashboard routes
 app.use("/api/dashboard", authMiddleware, requireMFA, requirePolicyAcceptance, dashboardRoutes);
