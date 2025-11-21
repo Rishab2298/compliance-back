@@ -784,6 +784,12 @@ export const scanDocumentWithAI = async (req, res) => {
       success: true,
       data: {
         documentType: detectedDocumentType,
+        documentTypeConfig: {
+          fields: documentTypeConfig.fields,
+          aiEnabled: documentTypeConfig.aiEnabled,
+          extractionMode: documentTypeConfig.extractionMode,
+          description: documentTypeConfig.description
+        },
         extractedData: parsedData,
         rawTextractData: textractData,
         creditsUsed: 1,
@@ -1094,6 +1100,12 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
           return {
             documentId: document.id,
             documentType: detectedDocumentType,
+            documentTypeConfig: {
+              fields: finalDocumentTypeConfig.fields,
+              aiEnabled: finalDocumentTypeConfig.aiEnabled,
+              extractionMode: finalDocumentTypeConfig.extractionMode,
+              description: finalDocumentTypeConfig.description
+            },
             success: true,
             extractedData: parsedData,
             rawTextractData: textractData,

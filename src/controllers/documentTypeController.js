@@ -601,12 +601,10 @@ export const getDocumentTypes = async (req, res) => {
       const customConfigs = company.documentTypeConfigs || {};
       const mergedConfigs = mergeWithDefaults(customConfigs);
 
-      // Filter to only ACTIVE document types
-      const activeConfigs = Object.entries(mergedConfigs).filter(([_, config]) => config.isActive);
-
-      // If includeFields=true, return full configurations
+      // If includeFields=true, return full configurations for ALL document types
+      // (Manual entry forms need all types, not just active ones)
       if (includeFields === 'true') {
-        const documentTypesWithFields = activeConfigs.map(([name, config]) => ({
+        const documentTypesWithFields = Object.entries(mergedConfigs).map(([name, config]) => ({
           name,
           aiEnabled: config.aiEnabled,
           isDefault: config.isDefault,
@@ -622,7 +620,8 @@ export const getDocumentTypes = async (req, res) => {
         });
       }
 
-      // Default: return just names for backward compatibility (only active ones)
+      // Default: return just names for backward compatibility (only ACTIVE ones)
+      const activeConfigs = Object.entries(mergedConfigs).filter(([_, config]) => config.isActive);
       const typeNames = activeConfigs.map(([name, _]) => name);
 
       return res.status(200).json({
