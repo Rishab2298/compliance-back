@@ -780,7 +780,7 @@ class AuditService {
       dataType: "Document",
       dataId: documentId,
       dataOwnerId: driverId,
-      accessType: "DOWNLOAD",
+      accessType: "READ",
       operation: "PRESIGNED_URL_GENERATED",
       purpose,
       ipAddress,
