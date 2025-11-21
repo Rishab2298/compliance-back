@@ -1,5 +1,6 @@
 import { clerkClient, getAuth } from "@clerk/express";
 import prisma from "../../prisma/client.js";
+import auditService from "../services/auditService.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -8,6 +9,29 @@ export const authMiddleware = async (req, res, next) => {
 
     if (!auth || !auth.userId) {
       console.error("No auth or userId found");
+
+      // Log failed authentication attempt as security event
+      const ipAddress = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress;
+      const userAgent = req.headers["user-agent"];
+
+      await auditService.logSecurityEvent({
+        userId: null,
+        userEmail: null,
+        companyId: null,
+        eventType: "FAILED_LOGIN",
+        severity: "MEDIUM",
+        ipAddress,
+        userAgent,
+        location: null,
+        description: "Authentication failed - No valid session or userId",
+        metadata: {
+          endpoint: req.originalUrl,
+          method: req.method,
+        },
+        blocked: true,
+        actionTaken: "Request rejected with 401",
+      });
+
       return res.status(401).json({ message: "Unauthorized - No valid session" });
     }
 
@@ -30,8 +54,29 @@ export const authMiddleware = async (req, res, next) => {
 export const requireAuth = async (req, res, next) => {
   try {
     const clerkUserId = getAuth(req)?.userId;
+    const ipAddress = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress;
+    const userAgent = req.headers["user-agent"];
 
     if (!clerkUserId) {
+      // Log authentication failure
+      await auditService.logSecurityEvent({
+        userId: null,
+        userEmail: null,
+        companyId: null,
+        eventType: "FAILED_LOGIN",
+        severity: "MEDIUM",
+        ipAddress,
+        userAgent,
+        location: null,
+        description: "Authentication required - No Clerk user ID found",
+        metadata: {
+          endpoint: req.originalUrl,
+          method: req.method,
+        },
+        blocked: true,
+        actionTaken: "Request rejected with 401",
+      });
+
       return res.status(401).json({
         error: "Unauthorized",
         message: "Authentication required",
@@ -53,6 +98,26 @@ export const requireAuth = async (req, res, next) => {
     });
 
     if (!user) {
+      // Log user not found as security event
+      await auditService.logSecurityEvent({
+        userId: clerkUserId,
+        userEmail: null,
+        companyId: null,
+        eventType: "SUSPICIOUS_ACTIVITY",
+        severity: "HIGH",
+        ipAddress,
+        userAgent,
+        location: null,
+        description: "Valid Clerk session but user not found in database",
+        metadata: {
+          clerkUserId,
+          endpoint: req.originalUrl,
+          method: req.method,
+        },
+        blocked: true,
+        actionTaken: "Request rejected with 404",
+      });
+
       return res.status(404).json({
         error: "User not found",
         message: "User not found in database",

@@ -26,6 +26,15 @@ export const createDriverInvitation = async (req, res) => {
       sendSMS,
     } = req.body;
 
+    // Validate authentication
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
     // Validate required fields
     if (!driverId || !requestedDocuments || requestedDocuments.length === 0) {
       return res.status(400).json({
@@ -55,9 +64,25 @@ export const createDriverInvitation = async (req, res) => {
       });
     }
 
-    // Get driver details
-    const driver = await prisma.driver.findUnique({
-      where: { id: driverId },
+    // Get user's company to verify authorization
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true }
+    });
+
+    if (!user || !user.companyId) {
+      return res.status(404).json({
+        success: false,
+        message: 'User or company not found',
+      });
+    }
+
+    // Get driver details with authorization check
+    const driver = await prisma.driver.findFirst({
+      where: {
+        id: driverId,
+        companyId: user.companyId, // Authorization: driver must belong to user's company
+      },
       include: {
         company: true,
       },
@@ -66,7 +91,7 @@ export const createDriverInvitation = async (req, res) => {
     if (!driver) {
       return res.status(404).json({
         success: false,
-        message: 'Driver not found',
+        message: 'Driver not found or access denied',
       });
     }
 

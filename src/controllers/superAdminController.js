@@ -255,18 +255,54 @@ export const getCompanyById = async (req, res) => {
  */
 export const getAllUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 20, search = '' } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build search filter
+    const where = search ? {
+      OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+      ]
+    } : {};
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
+        where,
         skip,
         take: parseInt(limit),
-        include: {
+        select: {
+          id: true,
+          clerkUserId: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          dspRole: true,
+          companyId: true,
+          mfaEnabled: true,
+          mfaEnrolledAt: true,
+          policiesAccepted: true,
+          policiesAcceptedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          // Include company details if user belongs to one
+          companyUser: {
+            select: {
+              id: true,
+              name: true,
+              plan: true,
+              subscriptionStatus: true,
+            }
+          },
+          // Include company details if user is an admin
           companyAdmin: {
             select: {
               id: true,
-              name: true
+              name: true,
+              plan: true,
+              subscriptionStatus: true,
             }
           }
         },
@@ -274,13 +310,22 @@ export const getAllUsers = async (req, res) => {
           createdAt: 'desc'
         }
       }),
-      prisma.user.count()
+      prisma.user.count({ where })
     ]);
+
+    // Format users to have a single company field
+    const formattedUsers = users.map(user => ({
+      ...user,
+      company: user.companyAdmin || user.companyUser || null,
+      isCompanyAdmin: !!user.companyAdmin,
+      companyAdmin: undefined,
+      companyUser: undefined,
+    }));
 
     return res.status(200).json({
       success: true,
       data: {
-        users,
+        users: formattedUsers,
         pagination: {
           total,
           page: parseInt(page),

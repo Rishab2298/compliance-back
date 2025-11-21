@@ -466,6 +466,17 @@ export const bulkImportDrivers = async (req, res) => {
       return res.status(400).json({ error: "Invalid request - drivers array is required" });
     }
 
+    // Validate batch size - maximum 100 drivers per import
+    const MAX_BATCH_SIZE = 100;
+    if (drivers.length > MAX_BATCH_SIZE) {
+      return res.status(400).json({
+        error: "Batch size limit exceeded",
+        message: `Cannot import more than ${MAX_BATCH_SIZE} drivers at once. You tried to import ${drivers.length} drivers.`,
+        limit: MAX_BATCH_SIZE,
+        attempted: drivers.length,
+      });
+    }
+
     // Find the user in the database
     const user = await prisma.user.findUnique({
       where: { clerkUserId: userId },
@@ -475,13 +486,37 @@ export const bulkImportDrivers = async (req, res) => {
       return res.status(404).json({ error: "User not found or not associated with a company" });
     }
 
-    // Get the company
+    // Get the company with driver count
     const company = await prisma.company.findUnique({
       where: { id: user.companyId },
+      include: {
+        _count: {
+          select: { drivers: true }
+        }
+      }
     });
 
     if (!company) {
       return res.status(404).json({ error: "Company not found. Please complete onboarding first." });
+    }
+
+    // Upfront validation: Check if user has plan capacity for the entire batch
+    const currentDriverCount = company._count.drivers;
+    const planLimits = getPlanLimits(company.plan);
+    const maxDrivers = planLimits.maxDrivers;
+
+    if (maxDrivers !== -1 && (currentDriverCount + drivers.length) > maxDrivers) {
+      return res.status(403).json({
+        error: "Driver limit exceeded",
+        message: `Your ${company.plan} plan allows ${maxDrivers} drivers. You currently have ${currentDriverCount} drivers and are trying to add ${drivers.length} more. Please upgrade your plan or reduce the number of drivers in this import.`,
+        current: currentDriverCount,
+        limit: maxDrivers,
+        attempted: drivers.length,
+        available: maxDrivers - currentDriverCount,
+        upgradeRequired: true,
+        currentPlan: company.plan,
+        errorCode: 'BULK_IMPORT_EXCEEDS_PLAN_LIMIT'
+      });
     }
 
     const results = {

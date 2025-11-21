@@ -3,6 +3,7 @@ import prisma from "../../prisma/client.js";
 import { getIPAddress, getRegionFromIP } from "../utils/geoip.js";
 import crypto from "crypto";
 import { clerkClient } from "@clerk/express";
+import { sendWelcomeEmail } from "../services/emailService.js";
 
 /**
  * Policy Controller
@@ -573,6 +574,34 @@ export const acceptPolicies = async (req, res) => {
           policiesAcceptedAt: new Date(),
         },
       });
+
+      // Send welcome email after all policies are accepted
+      try {
+        const userWithCompany = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            company: {
+              select: { name: true },
+            },
+          },
+        });
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const dashboardUrl = `${frontendUrl}/client/dashboard`;
+
+        await sendWelcomeEmail({
+          email: userEmail || clerkUser.emailAddresses[0]?.emailAddress,
+          firstName: clerkUser.firstName || 'there',
+          companyName: userWithCompany?.company?.name || 'your company',
+          role: user.role,
+          dashboardUrl,
+        });
+
+        console.log('✅ Welcome email sent successfully to:', userEmail);
+      } catch (emailError) {
+        // Log error but don't fail the request
+        console.error('❌ Failed to send welcome email:', emailError);
+      }
     }
 
     return res.status(200).json({

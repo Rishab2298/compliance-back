@@ -26,7 +26,9 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
     "fs": "^0.0.1-security",
+    "helmet": "^8.1.0",
     "https": "^1.0.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
@@ -40,6 +42,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "baseline-browser-mapping": "^2.8.30",
     "nodemon": "^3.1.10",
     "pm2": "^6.0.13",
     "prisma": "^6.17.1"

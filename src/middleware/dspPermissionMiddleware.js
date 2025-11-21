@@ -49,6 +49,31 @@ export const requireCapability = (capability) => {
 
       // Check if user has the required capability
       if (!hasDSPCapability(user, capability)) {
+        // Log unauthorized access attempt
+        const ipAddress = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress;
+        const userAgent = req.headers["user-agent"];
+
+        await auditService.logSecurityEvent({
+          userId: user.id,
+          userEmail: user.email,
+          companyId: user.companyId,
+          eventType: "UNAUTHORIZED_ACCESS_ATTEMPT",
+          severity: "MEDIUM",
+          ipAddress,
+          userAgent,
+          location: null,
+          description: `User attempted to access resource without required capability: ${capability}`,
+          metadata: {
+            requiredCapability: capability,
+            userRole: user.role,
+            userDspRole: user.dspRole,
+            endpoint: req.originalUrl,
+            method: req.method,
+          },
+          blocked: true,
+          actionTaken: "Request rejected with 403",
+        });
+
         return res.status(403).json({
           error: "Forbidden",
           message: `You do not have permission to perform this action. Required capability: ${capability}`,
@@ -111,6 +136,31 @@ export const requireDSPAdmin = async (req, res, next) => {
 
     // Must have dspRole = ADMIN
     if (user.dspRole !== "ADMIN") {
+      // Log unauthorized access attempt
+      const ipAddress = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress;
+      const userAgent = req.headers["user-agent"];
+
+      await auditService.logSecurityEvent({
+        userId: user.id,
+        userEmail: user.email,
+        companyId: null,
+        eventType: "UNAUTHORIZED_ACCESS_ATTEMPT",
+        severity: "MEDIUM",
+        ipAddress,
+        userAgent,
+        location: null,
+        description: "User attempted to access admin-only resource without admin role",
+        metadata: {
+          requiredRole: "ADMIN",
+          userRole: user.role,
+          userDspRole: user.dspRole,
+          endpoint: req.originalUrl,
+          method: req.method,
+        },
+        blocked: true,
+        actionTaken: "Request rejected with 403",
+      });
+
       return res.status(403).json({
         error: "Forbidden",
         message: "Only admins can perform this action",

@@ -13,6 +13,7 @@ import {
   getDocumentStatus,
 } from '../controllers/documentController.js';
 import { requireCapability } from '../middleware/dspPermissionMiddleware.js';
+import { aiScanRateLimiter, bulkAiScanRateLimiter } from '../middleware/rateLimitMiddleware.js';
 
 const router = express.Router();
 
@@ -30,8 +31,8 @@ router.get('/document-status', requireCapability("upload_documents"), getDocumen
 // Get AI credits balance (requires upload_documents)
 router.get('/credits', requireCapability("upload_documents"), getCreditsBalance);
 
-// Bulk AI scan multiple documents (requires upload_documents)
-router.post('/bulk-ai-scan', requireCapability("upload_documents"), bulkScanDocumentsWithAI);
+// Bulk AI scan multiple documents (requires upload_documents + rate limiting)
+router.post('/bulk-ai-scan', bulkAiScanRateLimiter, requireCapability("upload_documents"), bulkScanDocumentsWithAI);
 
 // Generate presigned URLs for upload (requires upload_documents capability)
 router.post('/presigned-urls/:driverId', requireCapability("upload_documents"), generatePresignedUrls);
@@ -48,8 +49,8 @@ router.get('/driver/:driverId', requireCapability("upload_documents"), getDriver
 // Get presigned download URL (requires upload_documents to download)
 router.get('/:documentId/download-url', requireCapability("upload_documents"), getDocumentDownloadUrl);
 
-// AI scan document (requires upload_documents capability)
-router.post('/:documentId/ai-scan', requireCapability("upload_documents"), scanDocumentWithAI);
+// AI scan document (requires upload_documents capability + rate limiting)
+router.post('/:documentId/ai-scan', aiScanRateLimiter, requireCapability("upload_documents"), scanDocumentWithAI);
 
 // Delete document (requires delete_documents capability - stricter permission)
 router.delete('/:documentId', requireCapability("delete_documents"), deleteDocument);

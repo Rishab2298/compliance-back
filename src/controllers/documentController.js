@@ -6,9 +6,11 @@ import {
   generateDocumentKey,
   deleteFile,
 } from '../services/s3Service.js';
-import { extractDocumentData, parseWithAI } from '../services/textractService.js';
+import { extractDocumentData, parseWithAI, parseWithAIDynamic, parseWithAIUnified } from '../services/textractService.js';
 import { deductCredits, checkLimit } from '../services/billingService.js';
 import auditService from '../services/auditService.js';
+import { mergeWithDefaults } from '../utils/documentTypeDefaults.js';
+import { calculateDocumentStatus } from '../utils/documentStatusUtils.js';
 
 /**
  * Generate presigned URLs for multiple file uploads
@@ -242,6 +244,12 @@ export const updateDocumentDetails = async (req, res) => {
       }
     }
 
+    // Get company's reminder settings to inform the user
+    const companyData = await prisma.company.findUnique({
+      where: { id: user.companyId },
+      select: { reminderDays: true },
+    });
+
     // Update document
     const updatedDocument = await prisma.document.update({
       where: { id: documentId },
@@ -256,10 +264,29 @@ export const updateDocumentDetails = async (req, res) => {
       },
     });
 
+    // Log reminder eligibility
+    if (expiryDate && companyData.reminderDays && companyData.reminderDays.length > 0) {
+      console.log(`✅ Document ${documentId} is eligible for automatic reminders`);
+      console.log(`   Expiry Date: ${expiryDate}`);
+      console.log(`   Status: ${status}`);
+      console.log(`   Company Reminder Settings: ${companyData.reminderDays.join(', ')}`);
+      console.log(`   Reminders will be sent automatically by cron job`);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Document updated successfully',
       data: updatedDocument,
+      reminderInfo: expiryDate && companyData.reminderDays?.length > 0 ? {
+        enabled: true,
+        expiryDate: expiryDate,
+        status: status,
+        reminderDays: companyData.reminderDays,
+        message: `Automatic reminders configured for ${companyData.reminderDays.join(', ')} before expiry`
+      } : {
+        enabled: false,
+        message: expiryDate ? 'No reminder settings configured for your company' : 'No expiry date provided'
+      }
     });
   } catch (error) {
     console.error('Error updating document:', error);
@@ -447,13 +474,30 @@ export const getDocumentDownloadUrl = async (req, res) => {
     }
 
     // Generate presigned download URL (valid for 15 minutes)
-    const downloadUrl = await generatePresignedDownloadUrl(document.s3Key, 900);
+    const expiresIn = 900;
+    const downloadUrl = await generatePresignedDownloadUrl(document.s3Key, expiresIn);
+
+    // Log document download for security audit trail and compliance
+    await auditService.logDocumentDownload({
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      companyId: user.companyId,
+      documentId: document.id,
+      documentType: document.type,
+      driverId: document.driver.id,
+      driverName: document.driver.name,
+      s3Key: document.s3Key,
+      expiresIn,
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.status(200).json({
       success: true,
       data: {
         downloadUrl,
-        expiresIn: 900, // seconds
+        expiresIn, // seconds
       },
     });
   } catch (error) {
@@ -489,20 +533,6 @@ export const scanDocumentWithAI = async (req, res) => {
 
     const companyId = user.companyId;
 
-    // Check credits using billing service
-    const creditCheck = await checkLimit(companyId, 'credits', { amount: 1 });
-
-    if (!creditCheck.allowed) {
-      return res.status(402).json({
-        error: 'Insufficient AI credits',
-        message: creditCheck.message,
-        current: creditCheck.current,
-        required: creditCheck.required,
-        purchaseCreditsRequired: true,
-        errorCode: 'INSUFFICIENT_CREDITS'
-      });
-    }
-
     // Get document
     const document = await prisma.document.findUnique({
       where: { id: documentId },
@@ -521,25 +551,175 @@ export const scanDocumentWithAI = async (req, res) => {
       return res.status(400).json({ error: 'Document has no S3 key' });
     }
 
-    console.log('Starting AI scan for document:', {
-      documentId,
-      s3Key: document.s3Key,
-      documentType: document.type,
+    // Get company's document type configurations
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        documentTypeConfigs: true,
+        name: true
+      }
     });
 
-    // Extract data using Textract
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    // Get configuration for this document type
+    const customConfigs = company.documentTypeConfigs || {};
+    const mergedConfigs = mergeWithDefaults(customConfigs);
+
+    // Check credits (we'll need 1 credit for the scan)
+    const creditCheck = await checkLimit(companyId, 'credits', { amount: 1 });
+
+    if (!creditCheck.allowed) {
+      return res.status(402).json({
+        error: 'Insufficient AI credits',
+        message: creditCheck.message,
+        current: creditCheck.current,
+        required: creditCheck.required,
+        purchaseCreditsRequired: true,
+        errorCode: 'INSUFFICIENT_CREDITS'
+      });
+    }
+
+    let detectedDocumentType;
+    let documentTypeConfig;
+    let parsedData;
+    let usage;
+    let validation;
+    let metadata;
+
+    // Extract data using Textract ONCE
     console.log('Extracting data with Textract...');
     const textractData = await extractDocumentData(document.s3Key);
     console.log('Textract extraction complete');
 
-    // Parse with OpenAI
-    console.log('Parsing with OpenAI...');
-    const parseResult = await parseWithAI(textractData, document.type);
-    const parsedData = parseResult.parsedData;
-    const usage = parseResult.usage;
-    console.log('OpenAI parsing complete:', parsedData);
+    // If document type is NOT set or is "Pending Classification", use UNIFIED parsing (classify + extract in ONE call)
+    if (!document.type || document.type === 'Pending Classification') {
+      console.log('Document type not set - using UNIFIED classification + extraction');
 
-    // Deduct credits using billing service
+      // Use unified parsing (classifies AND extracts in single AI call)
+      const unifiedResult = await parseWithAIUnified(textractData, mergedConfigs);
+
+      detectedDocumentType = unifiedResult.detectedType;
+      documentTypeConfig = unifiedResult.documentTypeConfig;
+      parsedData = unifiedResult.parsedData;
+      usage = unifiedResult.usage;
+      validation = unifiedResult.validation;
+      metadata = unifiedResult.metadata;
+
+      console.log('✅ Unified parsing complete:', {
+        detectedType: detectedDocumentType,
+        confidence: metadata.confidence,
+        fieldsExtracted: usage.fieldsExtracted
+      });
+
+      // Check if AI is enabled for detected document type
+      if (!documentTypeConfig.aiEnabled) {
+        return res.status(400).json({
+          error: 'AI extraction is disabled for this document type',
+          message: `AI detected document type "${detectedDocumentType}" but AI extraction is not enabled for it.`,
+          documentType: detectedDocumentType
+        });
+      }
+
+    } else {
+      // Document type IS set, use standard dynamic parsing
+      console.log('Document type already set:', document.type);
+
+      detectedDocumentType = document.type;
+      documentTypeConfig = mergedConfigs[document.type];
+
+      if (!documentTypeConfig) {
+        return res.status(400).json({
+          error: 'Document type configuration not found',
+          message: `No configuration found for document type: ${document.type}`,
+          availableTypes: Object.keys(mergedConfigs)
+        });
+      }
+
+      // Check if AI is enabled for this document type
+      if (!documentTypeConfig.aiEnabled) {
+        return res.status(400).json({
+          error: 'AI extraction is disabled for this document type',
+          message: `AI extraction is not enabled for ${detectedDocumentType}. Please enable it in settings first.`,
+          documentType: detectedDocumentType
+        });
+      }
+
+      console.log('Starting AI extraction for document:', {
+        documentId,
+        s3Key: document.s3Key,
+        documentType: detectedDocumentType,
+        extractionMode: documentTypeConfig.extractionMode,
+        fieldsToExtract: documentTypeConfig.fields?.length || 0
+      });
+
+      // Parse with OpenAI using dynamic prompting
+      console.log('Parsing with OpenAI (Dynamic)...');
+      const parseResult = await parseWithAIDynamic(textractData, documentTypeConfig, detectedDocumentType);
+      parsedData = parseResult.parsedData;
+      usage = parseResult.usage;
+      validation = parseResult.validation;
+      metadata = parseResult.metadata;
+      console.log('OpenAI parsing complete:', parsedData);
+    }
+
+    // Ensure documentType field is set in parsed data
+    if (!parsedData.documentType) {
+      parsedData.documentType = detectedDocumentType;
+    }
+
+    // Special logic for Driver's Abstract: Calculate expiry date from issue date + 30 days
+    if (detectedDocumentType === "Driver Abstract" && parsedData.issueDate) {
+      try {
+        const issueDate = new Date(parsedData.issueDate);
+        if (!isNaN(issueDate.getTime())) {
+          // Add 30 days to the issue date
+          const expiryDate = new Date(issueDate);
+          expiryDate.setDate(expiryDate.getDate() + 30);
+
+          // Format as YYYY-MM-DD
+          parsedData.expiryDate = expiryDate.toISOString().split('T')[0];
+
+          console.log('✅ Driver Abstract expiry date calculated:', {
+            issueDate: parsedData.issueDate,
+            expiryDate: parsedData.expiryDate
+          });
+        }
+      } catch (error) {
+        console.error('Error calculating Driver Abstract expiry date:', error);
+      }
+    }
+
+    // Special logic for Work Eligibility: Map document sub-type to status
+    if (detectedDocumentType === "Work Eligibility" && parsedData.documentSubType) {
+      try {
+        const subType = parsedData.documentSubType.toLowerCase();
+
+        // Map document sub-type to status
+        if (subType.includes('passport')) {
+          parsedData.status = 'Citizen';
+          console.log('✅ Work Eligibility: Detected Passport → Status: Citizen');
+        } else if (subType.includes('pr') || subType.includes('permanent resident')) {
+          parsedData.status = 'Permanent Resident';
+          console.log('✅ Work Eligibility: Detected PR Card → Status: Permanent Resident');
+        } else if (subType.includes('work permit') || subType.includes('permit')) {
+          parsedData.status = 'Work Permit';
+          console.log('✅ Work Eligibility: Detected Work Permit → Status: Work Permit');
+        }
+
+        console.log('Work Eligibility mapping complete:', {
+          documentSubType: parsedData.documentSubType,
+          status: parsedData.status,
+          expiryDate: parsedData.expiryDate
+        });
+      } catch (error) {
+        console.error('Error mapping Work Eligibility status:', error);
+      }
+    }
+
+    // Deduct credits ONLY if AI extraction actually happened
     const deductResult = await deductCredits(companyId, documentId, 1);
 
     if (!deductResult.success) {
@@ -598,7 +778,7 @@ export const scanDocumentWithAI = async (req, res) => {
 
     console.log('Returning extracted data to frontend');
 
-    // Return extracted data (don't auto-save, let user review)
+    // Return extracted data (don't auto-save, let user review and save manually)
     return res.status(200).json({
       success: true,
       data: {
@@ -606,6 +786,15 @@ export const scanDocumentWithAI = async (req, res) => {
         rawTextractData: textractData,
         creditsUsed: 1,
         creditsRemaining: deductResult.balanceAfter,
+        validation,
+        metadata,
+        usage: {
+          tokensUsed: usage.totalTokens,
+          inputTokens: usage.promptTokens,
+          outputTokens: usage.completionTokens,
+          extractionMode: usage.extractionMode,
+          fieldsExtracted: usage.fieldsExtracted
+        }
       },
     });
   } catch (error) {
@@ -729,16 +918,46 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
 
     console.log(`Starting bulk AI scan for ${documents.length} documents`);
 
-    // Get company info for AI usage tracking
+    // Get company info for AI usage tracking and document type configurations
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { name: true }
+      select: {
+        name: true,
+        documentTypeConfigs: true
+      }
     });
+
+    // Get merged document type configurations
+    const customConfigs = company.documentTypeConfigs || {};
+    const mergedConfigs = mergeWithDefaults(customConfigs);
 
     // Scan all documents in parallel
     const scanResults = await Promise.all(
       documents.map(async (document) => {
         try {
+          // Check if AI is enabled for this document type
+          const documentTypeConfig = mergedConfigs[document.type];
+
+          if (!documentTypeConfig) {
+            return {
+              documentId: document.id,
+              success: false,
+              error: `Document type configuration not found for: ${document.type}`,
+              skipped: true,
+              reason: 'MISSING_CONFIG'
+            };
+          }
+
+          if (!documentTypeConfig.aiEnabled) {
+            return {
+              documentId: document.id,
+              success: false,
+              error: `AI extraction is disabled for document type: ${document.type}`,
+              skipped: true,
+              reason: 'AI_DISABLED'
+            };
+          }
+
           if (!document.s3Key) {
             // Track failed attempt (no S3 key)
             try {
@@ -774,13 +993,15 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
             };
           }
 
-          console.log(`Scanning document ${document.id} with Textract...`);
+          console.log(`Scanning document ${document.id} (${document.type}) with Textract...`);
           const textractData = await extractDocumentData(document.s3Key);
 
-          console.log(`Parsing document ${document.id} with OpenAI...`);
-          const parseResult = await parseWithAI(textractData, document.type);
+          console.log(`Parsing document ${document.id} with OpenAI (Dynamic)...`);
+          const parseResult = await parseWithAIDynamic(textractData, documentTypeConfig, document.type);
           const parsedData = parseResult.parsedData;
           const usage = parseResult.usage;
+          const validation = parseResult.validation;
+          const metadata = parseResult.metadata;
 
           // Track successful AI usage
           try {
@@ -823,9 +1044,17 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
 
           return {
             documentId: document.id,
+            documentType: document.type,
             success: true,
             extractedData: parsedData,
             rawTextractData: textractData,
+            validation,
+            metadata,
+            usage: {
+              tokensUsed: usage.totalTokens,
+              extractionMode: usage.extractionMode,
+              fieldsExtracted: usage.fieldsExtracted
+            }
           };
         } catch (error) {
           console.error(`Error scanning document ${document.id}:`, error);
@@ -870,10 +1099,12 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
       })
     );
 
-    // Count successful scans
+    // Count successful scans and skipped documents
     const successfulScans = scanResults.filter((r) => r.success).length;
+    const skippedScans = scanResults.filter((r) => r.skipped).length;
+    const failedScans = scanResults.filter((r) => !r.success && !r.skipped).length;
 
-    // Deduct credits based on successful scans using billing service
+    // Deduct credits ONLY for successful scans (where AI was actually used)
     let creditsRemaining = creditCheck.current;
 
     if (successfulScans > 0) {
@@ -883,16 +1114,20 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
       }
     }
 
-    console.log(`Bulk scan complete: ${successfulScans}/${documents.length} successful`);
+    console.log(`Bulk scan complete: ${successfulScans} successful, ${skippedScans} skipped, ${failedScans} failed out of ${documents.length} total`);
 
     return res.status(200).json({
       success: true,
       data: {
         results: scanResults,
-        totalCreditsUsed: successfulScans,
-        creditsRemaining,
-        successfulScans,
-        totalDocuments: documents.length,
+        summary: {
+          totalDocuments: documents.length,
+          successfulScans,
+          skippedScans,
+          failedScans,
+          totalCreditsUsed: successfulScans,
+          creditsRemaining
+        }
       },
     });
   } catch (error) {
@@ -1161,15 +1396,21 @@ export const getDocumentStatus = async (req, res) => {
         gte: today,
         lte: expiringThreshold
       };
-    } else if (status === 'valid') {
-      statusWhere.OR = [
-        { expiryDate: null },
-        { expiryDate: { gt: expiringThreshold } }
+    } else if (status === 'verified' || status === 'valid') { // Support both 'verified' and legacy 'valid'
+      // Document must be ACTIVE (data filled) AND not expired/expiring
+      statusWhere.AND = [
+        { status: 'ACTIVE' }, // Only verified if status is ACTIVE (data is filled)
+        {
+          OR: [
+            { expiryDate: null },
+            { expiryDate: { gt: expiringThreshold } }
+          ]
+        }
       ];
     }
 
     // Fetch documents and count in parallel
-    const [documents, totalCount, expiredCount, expiringCount, validCount, allCount] = await Promise.all([
+    const [documents, totalCount, expiredCount, expiringCount, verifiedCount, allCount] = await Promise.all([
       prisma.document.findMany({
         where: statusWhere,
         select: {
@@ -1178,6 +1419,7 @@ export const getDocumentStatus = async (req, res) => {
           fileName: true,
           expiryDate: true,
           uploadedAt: true,
+          status: true, // Include status to check if data is filled
           driver: {
             select: {
               id: true,
@@ -1205,10 +1447,11 @@ export const getDocumentStatus = async (req, res) => {
           expiryDate: { gte: today, lte: expiringThreshold }
         }
       }),
-      // Count valid (no expiry or expires after 30 days)
+      // Count verified (status ACTIVE AND no expiry or expires after 30 days)
       prisma.document.count({
         where: {
           ...baseWhere,
+          status: 'ACTIVE', // Only count as verified if data is filled (ACTIVE)
           OR: [
             { expiryDate: null },
             { expiryDate: { gt: expiringThreshold } }
@@ -1221,25 +1464,10 @@ export const getDocumentStatus = async (req, res) => {
 
     const totalPages = Math.ceil(totalCount / limitNum);
 
-    // Calculate status for each document for display
+    // Calculate status for each document for display using shared utility
     const documentsWithStatus = documents.map((doc) => {
-      let docStatus;
-
-      if (!doc.expiryDate) {
-        docStatus = 'valid';
-      } else {
-        const expiryDate = new Date(doc.expiryDate);
-        const diffTime = expiryDate - today;
-        const daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (daysUntilExpiry < 0) {
-          docStatus = 'expired';
-        } else if (daysUntilExpiry <= 30) {
-          docStatus = 'expiring';
-        } else {
-          docStatus = 'valid';
-        }
-      }
+      // Use shared utility function for consistent status calculation
+      const docStatus = calculateDocumentStatus(doc);
 
       // Split name into firstName and lastName
       const nameParts = doc.driver.name ? doc.driver.name.trim().split(' ') : ['Unknown'];
@@ -1274,7 +1502,7 @@ export const getDocumentStatus = async (req, res) => {
           all: allCount,
           expired: expiredCount,
           expiring: expiringCount,
-          valid: validCount,
+          verified: verifiedCount,
         },
       },
     });

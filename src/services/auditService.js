@@ -461,6 +461,7 @@ class AuditService {
     severity,
     startDate,
     endDate,
+    search,
     limit = 100,
     offset = 0,
   }) {
@@ -482,6 +483,16 @@ class AuditService {
       where.timestamp = {};
       if (startDate) where.timestamp.gte = new Date(startDate);
       if (endDate) where.timestamp.lte = new Date(endDate);
+    }
+
+    // Search across multiple fields
+    if (search) {
+      where.OR = [
+        { userEmail: { contains: search, mode: 'insensitive' } },
+        { userName: { contains: search, mode: 'insensitive' } },
+        { action: { contains: search, mode: 'insensitive' } },
+        { resource: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     const [logs, total] = await Promise.all([
@@ -720,6 +731,64 @@ class AuditService {
   }
 
   /**
+   * Log document download/view operations (presigned URL generation)
+   * Important for security audit trail and compliance (GDPR, PIPEDA)
+   */
+  async logDocumentDownload({
+    userId,
+    userEmail,
+    userName,
+    companyId,
+    documentId,
+    documentType,
+    driverId,
+    driverName,
+    s3Key,
+    expiresIn,
+    ipAddress,
+    userAgent,
+    purpose = "Document view/download",
+  }) {
+    // Log in audit logs for general tracking
+    await this.logAudit({
+      userId,
+      userEmail,
+      userName,
+      companyId,
+      action: "DOCUMENT_DOWNLOAD_URL_GENERATED",
+      resource: "Document",
+      resourceId: documentId,
+      ipAddress,
+      userAgent,
+      severity: "INFO",
+      category: "DATA_ACCESS",
+      metadata: {
+        documentType,
+        driverId,
+        driverName,
+        s3Key,
+        urlExpiresInSeconds: expiresIn,
+        purpose,
+      },
+    });
+
+    // Also log in data access logs for compliance (GDPR/PIPEDA)
+    await this.logDataAccess({
+      userId,
+      userEmail,
+      companyId,
+      dataType: "Document",
+      dataId: documentId,
+      dataOwnerId: driverId,
+      accessType: "DOWNLOAD",
+      operation: "PRESIGNED_URL_GENERATED",
+      purpose,
+      ipAddress,
+      endpoint: "/api/documents/:documentId",
+    });
+  }
+
+  /**
    * Verify integrity of log chain for a company
    * Returns { valid: true/false, error: string, tamperedLog: object }
    */
@@ -845,6 +914,52 @@ class AuditService {
       return {
         error: `Failed to verify companies: ${error.message}`,
       };
+    }
+  }
+
+  /**
+   * Log ticket operations
+   */
+  async logTicketOperation({
+    userId,
+    userEmail,
+    userName,
+    companyId,
+    action,
+    ticketId,
+    ticketNumber,
+    metadata = {},
+    ipAddress = null,
+    userAgent = null,
+  }) {
+    try {
+      const auditLog = await prisma.auditLog.create({
+        data: {
+          userId,
+          userEmail,
+          userName,
+          companyId,
+          action,
+          resource: 'Ticket',
+          resourceId: ticketId,
+          metadata: {
+            ticketNumber,
+            ...metadata,
+          },
+          ipAddress,
+          userAgent,
+          severity: 'INFO',
+          category: 'DATA_MODIFICATION',
+          timestamp: new Date(),
+        },
+      });
+
+      console.log('✅ Ticket operation logged:', action);
+      return auditLog;
+    } catch (error) {
+      console.error('⚠️ Failed to log ticket operation:', error);
+      // Don't throw error - logging failure shouldn't break the operation
+      return null;
     }
   }
 }

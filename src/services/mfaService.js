@@ -239,6 +239,40 @@ class MFAService {
         ipAddress,
         userAgent,
       });
+
+      // Check for multiple failed MFA attempts (last 15 minutes)
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const recentFailures = await prisma.mFAAttempt.count({
+        where: {
+          userId,
+          success: false,
+          timestamp: {
+            gte: fifteenMinutesAgo,
+          },
+        },
+      });
+
+      // Log security event if 3 or more failures in 15 minutes
+      if (recentFailures >= 3) {
+        await auditService.logSecurityEvent({
+          userId,
+          userEmail: user.email,
+          companyId: user.companyId,
+          eventType: "MULTIPLE_FAILED_MFA",
+          severity: recentFailures >= 5 ? "HIGH" : "MEDIUM",
+          ipAddress,
+          userAgent,
+          location: null,
+          description: `Multiple failed MFA attempts detected: ${recentFailures} failures in last 15 minutes`,
+          metadata: {
+            failureCount: recentFailures,
+            timeWindow: "15 minutes",
+            method: "TOTP",
+          },
+          blocked: false,
+          actionTaken: recentFailures >= 5 ? "Account flagged for review" : "Monitoring",
+        });
+      }
     }
 
     return verified;
@@ -344,6 +378,40 @@ class MFAService {
         ipAddress,
         userAgent,
       });
+
+      // Check for multiple failed MFA attempts (last 15 minutes)
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const recentFailures = await prisma.mFAAttempt.count({
+        where: {
+          userId,
+          success: false,
+          timestamp: {
+            gte: fifteenMinutesAgo,
+          },
+        },
+      });
+
+      // Log security event if 3 or more failures in 15 minutes
+      if (recentFailures >= 3) {
+        await auditService.logSecurityEvent({
+          userId,
+          userEmail: user.email,
+          companyId: user.companyId,
+          eventType: "MULTIPLE_FAILED_MFA",
+          severity: recentFailures >= 5 ? "HIGH" : "MEDIUM",
+          ipAddress,
+          userAgent,
+          location: null,
+          description: `Multiple failed MFA attempts detected: ${recentFailures} failures in last 15 minutes`,
+          metadata: {
+            failureCount: recentFailures,
+            timeWindow: "15 minutes",
+            method: "BACKUP_CODE",
+          },
+          blocked: false,
+          actionTaken: recentFailures >= 5 ? "Account flagged for review" : "Monitoring",
+        });
+      }
 
       throw new Error("Invalid backup code");
     }

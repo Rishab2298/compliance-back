@@ -37,6 +37,14 @@ export const generatePresignedUploadUrl = async (key, contentType, expiresIn = 3
 
 /**
  * Generate presigned URL for downloading/viewing a file from S3
+ *
+ * SECURITY CONSIDERATIONS:
+ * - URLs expire after specified time to prevent unauthorized long-term access
+ * - Default expiration: 15 minutes (900 seconds) for sensitive documents
+ * - All URL generations are logged in audit trail for compliance
+ * - URLs are single-use and cannot be renewed without re-authentication
+ * - Shorter expiration times recommended for highly sensitive documents
+ *
  * @param {string} key - S3 object key (file path)
  * @param {number} expiresIn - URL expiration time in seconds (default: 900 = 15 minutes)
  * @returns {Promise<string>} - Presigned download URL

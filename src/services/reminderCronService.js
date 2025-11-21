@@ -122,6 +122,39 @@ async function sendDailyReminders() {
 
     console.log(`📊 Found ${companies.length} companies with reminder settings`);
 
+    // ✅ OPTIMIZATION: Batch load all existing reminders in ONE query
+    // Collect all document IDs from all companies
+    const allDocumentIds = companies.flatMap(company =>
+      company.drivers.flatMap(driver =>
+        driver.documents.map(doc => doc.id)
+      )
+    );
+
+    console.log(`📊 Total documents to check: ${allDocumentIds.length}`);
+
+    // Load all recent reminders in a single query
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const existingReminders = await prisma.documentReminder.findMany({
+      where: {
+        documentId: { in: allDocumentIds },
+        sentAt: { not: null },
+        createdAt: { gte: sevenDaysAgo },
+      },
+      select: {
+        documentId: true,
+        daysBeforeExpiry: true,
+      },
+    });
+
+    console.log(`📊 Found ${existingReminders.length} existing reminders (last 7 days)`);
+
+    // Create lookup map for O(1) access: "documentId-daysBeforeExpiry" -> true
+    const reminderMap = new Map();
+    existingReminders.forEach(reminder => {
+      const key = `${reminder.documentId}-${reminder.daysBeforeExpiry}`;
+      reminderMap.set(key, true);
+    });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -161,18 +194,9 @@ async function sendDailyReminders() {
             if (expiryDate >= startDate && expiryDate <= endDate) {
               stats.remindersChecked++;
 
-              // Check if reminder already sent for this document and interval
-              const existingReminder = await prisma.documentReminder.findFirst({
-                where: {
-                  documentId: document.id,
-                  daysBeforeExpiry: daysCount,
-                  sentAt: { not: null },
-                  // Only check reminders sent in the last 7 days to avoid duplicates
-                  createdAt: {
-                    gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-                  },
-                },
-              });
+              // ✅ O(1) lookup in memory map instead of database query
+              const reminderKey = `${document.id}-${daysCount}`;
+              const existingReminder = reminderMap.get(reminderKey);
 
               if (existingReminder) {
                 console.log(`    ⏭️  Skipping: ${document.type} for ${driver.name} (already sent)`);
@@ -191,6 +215,9 @@ async function sendDailyReminders() {
               if (success) {
                 stats.remindersSent++;
                 console.log(`    ✅ Sent: ${document.type} reminder to ${driver.name}`);
+
+                // ✅ Add to map to prevent sending duplicate in same run
+                reminderMap.set(reminderKey, true);
 
                 // Add small delay between processing different documents
                 await randomDelay(500, 2000);

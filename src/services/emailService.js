@@ -172,6 +172,136 @@ export const sendEmail = async ({ to, subject, text, html }) => {
 };
 
 /**
+ * Send welcome email after policy acceptance
+ * @param {Object} params - Email parameters
+ * @param {string} params.email - Recipient email
+ * @param {string} params.firstName - User's first name
+ * @param {string} params.companyName - Company name
+ * @param {string} params.role - User's role
+ * @param {string} params.dashboardUrl - Dashboard URL
+ */
+export const sendWelcomeEmail = async ({
+  email,
+  firstName,
+  companyName,
+  role,
+  dashboardUrl,
+}) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"DSP ComplianceManager" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: `Welcome to DSP ComplianceManager - ${companyName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #f9f9f9;
+            }
+            .content {
+              background-color: white;
+              padding: 30px;
+              border-radius: 8px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .header {
+              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 50%, #a855f7 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+              margin-bottom: 20px;
+            }
+            .button {
+              display: inline-block;
+              padding: 12px 30px;
+              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%);
+              color: white;
+              text-decoration: none;
+              border-radius: 6px;
+              margin: 20px 0;
+            }
+            .features {
+              background-color: #eff6ff;
+              padding: 20px;
+              border-radius: 6px;
+              margin: 20px 0;
+            }
+            .feature-item {
+              margin: 10px 0;
+              padding-left: 20px;
+              position: relative;
+            }
+            .feature-item:before {
+              content: "✓";
+              position: absolute;
+              left: 0;
+              color: #2563eb;
+              font-weight: bold;
+            }
+            .footer {
+              margin-top: 20px;
+              font-size: 12px;
+              color: #666;
+              border-top: 1px solid #e5e7eb;
+              padding-top: 20px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="content">
+              <h1 class="header">Welcome to DSP ComplianceManager!</h1>
+              <p>Hello ${firstName},</p>
+              <p>We're thrilled to have you join <strong>${companyName}</strong> on DSP ComplianceManager. You've successfully completed the onboarding process and accepted all necessary policies.</p>
+
+              <div class="features">
+                <h3 style="color: #1f2937; margin-top: 0;">What you can do now:</h3>
+                <div class="feature-item">Manage and track driver documents</div>
+                <div class="feature-item">Monitor compliance scores in real-time</div>
+                <div class="feature-item">Set up automated reminders for expiring documents</div>
+                <div class="feature-item">Generate compliance reports</div>
+                <div class="feature-item">Collaborate with your team</div>
+              </div>
+
+              <p>Click the button below to access your dashboard and get started:</p>
+
+              <a href="${dashboardUrl}" class="button">Go to Dashboard</a>
+
+              <p>If you have any questions or need assistance, our support team is here to help. Feel free to reach out to us anytime.</p>
+
+              <div class="footer">
+                <p><strong>Need help?</strong> Visit our Help Center or contact support at <a href="mailto:support@dspcompliance.com">support@dspcompliance.com</a></p>
+                <p style="margin-top: 10px;">You're receiving this email because you recently completed onboarding for DSP ComplianceManager.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Welcome email sent successfully:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    throw new Error(`Failed to send welcome email: ${error.message}`);
+  }
+};
+
+/**
  * Send team member invitation email
  * @param {Object} params - Email parameters
  * @param {string} params.email - Recipient email

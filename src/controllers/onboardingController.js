@@ -3,6 +3,7 @@ import prisma from "../../prisma/client.js";
 import { onboardingSchema } from "../schemas/onboardingSchema.js";
 import { getIPAddress, getRegionFromIP } from "../utils/geoip.js";
 import crypto from "crypto";
+import { sendWelcomeEmail } from "../services/emailService.js";
 
 /**
  * Helper function to create policy acceptance records for admin users during onboarding
@@ -231,6 +232,25 @@ export const saveOnboarding = async (req, res) => {
         },
       });
 
+      // Send welcome email after policy acceptance
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const dashboardUrl = `${frontendUrl}/client/dashboard`;
+
+        await sendWelcomeEmail({
+          email: userEmail,
+          firstName: clerkUser.firstName || validatedData.adminFullName?.split(' ')[0] || 'there',
+          companyName: updatedCompany.name,
+          role: user.role,
+          dashboardUrl,
+        });
+
+        console.log('✅ Welcome email sent successfully to:', userEmail);
+      } catch (emailError) {
+        // Log error but don't fail the request
+        console.error('❌ Failed to send welcome email:', emailError);
+      }
+
       // Sync companyId to Clerk metadata (preserve existing role/dspRole)
       await clerkClient.users.updateUserMetadata(userId, {
         publicMetadata: {
@@ -346,6 +366,25 @@ export const saveOnboarding = async (req, res) => {
         // Don't fail onboarding if consent logging fails, but log the error
       }
 
+      // Send welcome email after policy acceptance
+      try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const dashboardUrl = `${frontendUrl}/client/dashboard`;
+
+        await sendWelcomeEmail({
+          email: userEmail,
+          firstName: clerkUser.firstName || validatedData.adminFullName?.split(' ')[0] || 'there',
+          companyName: newCompany.name,
+          role: user.role,
+          dashboardUrl,
+        });
+
+        console.log('✅ Welcome email sent successfully to:', userEmail);
+      } catch (emailError) {
+        // Log error but don't fail the request
+        console.error('❌ Failed to send welcome email:', emailError);
+      }
+
       // Update Clerk user metadata - preserve existing metadata
       console.log("Updating Clerk metadata for user:", userId);
       await clerkClient.users.updateUserMetadata(userId, {
@@ -449,6 +488,62 @@ export const getOnboardingStatus = async (req, res) => {
     return res.status(500).json({
       error: "Internal server error",
       message: error.message,
+    });
+  }
+};
+
+/**
+ * Send welcome email to user after policy acceptance
+ * POST /api/onboarding/send-welcome-email
+ */
+export const sendOnboardingWelcomeEmail = async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized - No user ID found" });
+    }
+
+    // Get user details
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: userId },
+      include: {
+        company: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Get frontend URL from environment
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const dashboardUrl = `${frontendUrl}/client/dashboard`;
+
+    // Send welcome email
+    await sendWelcomeEmail({
+      email: user.email,
+      firstName: user.firstName || 'there',
+      companyName: user.company?.name || 'your company',
+      role: user.role,
+      dashboardUrl,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Welcome email sent successfully",
+    });
+  } catch (error) {
+    console.error("Error sending welcome email:", error);
+    // Don't fail the request if email fails
+    return res.status(200).json({
+      success: false,
+      message: "Failed to send welcome email, but onboarding is complete",
+      error: error.message,
     });
   }
 };

@@ -6,11 +6,12 @@ import {
   createDriverDocuments,
   completeDriverInvitation,
 } from '../controllers/driverInvitationController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Create driver invitation and send link
-router.post('/', createDriverInvitation);
+// Create driver invitation and send link (requires authentication)
+router.post('/', requireAuth, createDriverInvitation);
 
 // Get invitation by token (public route - no auth required)
 router.get('/:token', getDriverInvitationByToken);

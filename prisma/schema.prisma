@@ -38,6 +38,10 @@ model User {
   mfaAttempts       MFAAttempt[]
   policies          Policy[]
   policyAcceptances UserPolicyAcceptance[]
+  ticketsReported   Ticket[]               @relation("ReportedTickets")
+  ticketsAssigned   Ticket[]               @relation("AssignedTickets")
+  ticketsResolved   Ticket[]               @relation("ResolvedTickets")
+  ticketComments    TicketComment[]
 }
 
 model Company {
@@ -58,6 +62,7 @@ model Company {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   documentTypes          String[] @default([])
+  documentTypeConfigs    Json?    @default("{}")
   reminderDays           String[] @default([])
 
   // Extended Company Information (from onboarding)
@@ -72,12 +77,12 @@ model Company {
   adminFullName              String?
 
   // DSP Specific Information
-  isAmazonDSP     Boolean   @default(false)
-  dspCompanyName  String?
-  stationCodes    String[]  @default([])
-  dspOwnerName    String?
-  opsManagerName  String?
-  dspId           String?
+  isAmazonDSP    Boolean  @default(false)
+  dspCompanyName String?
+  stationCodes   String[] @default([])
+  dspOwnerName   String?
+  opsManagerName String?
+  dspId          String?
 
   // Billing Contact Information
   paymentMethod       String?
@@ -116,6 +121,7 @@ model Company {
   User               User[]              @relation("CompanyUsers")
   billingHistory     BillingHistory[]
   creditTransactions CreditTransaction[]
+  tickets            Ticket[]
 }
 
 model Driver {
@@ -163,6 +169,7 @@ model Document {
   @@index([driverId])
   @@index([status])
   @@index([expiryDate])
+  @@index([status, expiryDate]) // Critical for reminder cron job queries
   @@index([driverId, status])
   @@index([driverId, expiryDate])
 }
@@ -313,19 +320,19 @@ model TeamInvitation {
   id               String               @id @default(uuid())
   companyId        String
   email            String
-  firstName        String?              // Invited user's first name
-  lastName         String?              // Invited user's last name
+  firstName        String? // Invited user's first name
+  lastName         String? // Invited user's last name
   dspRole          DSPRole
   invitedById      String
   status           TeamInvitationStatus @default(PENDING)
-  clerkSignInToken String?              // The Clerk sign-in token URL
-  clerkUserId      String?              // Clerk user ID once created
-  userId           String?              // Database user ID once created
+  clerkSignInToken String? // The Clerk sign-in token URL
+  clerkUserId      String? // Clerk user ID once created
+  userId           String? // Database user ID once created
   expiresAt        DateTime
   emailSentAt      DateTime?
   acceptedAt       DateTime?
   rejectedAt       DateTime?
-  errorMessage     String?              // If email failed to send
+  errorMessage     String? // If email failed to send
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -613,6 +620,7 @@ enum AuditAction {
   // Document Operations
   DOCUMENT_UPLOADED
   DOCUMENT_DOWNLOADED
+  DOCUMENT_DOWNLOAD_URL_GENERATED
   DOCUMENT_VIEWED
   DOCUMENT_DELETED
   DOCUMENT_PROCESSED
@@ -657,6 +665,10 @@ enum AuditAction {
   PERMISSION_DENIED
   SUSPICIOUS_ACTIVITY
   RATE_LIMIT_EXCEEDED
+
+  // Client-side Events
+  CLIENT_ERROR
+  ROUTE_NOT_FOUND
 }
 
 enum AuditCategory {
@@ -852,4 +864,104 @@ enum AIUsageStatus {
   FAILED
   PARTIAL
   TIMEOUT
+}
+
+// ============================================
+// TICKETING SYSTEM MODELS
+// ============================================
+
+model Ticket {
+  id              String   @id @default(uuid())
+  ticketNumber    String   @unique // Auto-generated: TKT-00001, TKT-00002, etc.
+
+  // Reporter information
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reportedById    String
+  reportedBy      User     @relation("ReportedTickets", fields: [reportedById], references: [id])
+  reporterName    String   // Cached for display
+  reporterEmail   String   // Cached for display
+
+  // Ticket details
+  title           String
+  description     String   @db.Text
+  category        TicketCategory // BUG, FEATURE_REQUEST, SUPPORT, OTHER
+  priority        TicketPriority @default(MEDIUM) // LOW, MEDIUM, HIGH, CRITICAL
+  status          TicketStatus @default(OPEN) // OPEN, IN_PROGRESS, RESOLVED, CLOSED, REOPENED
+
+  // Attachments (images/screenshots)
+  attachments     Json?    // Array of { url, key, filename, uploadedAt }
+
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?    @relation("AssignedTickets", fields: [assignedToId], references: [id])
+
+  // Resolution
+  resolutionNotes String?  @db.Text
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?    @relation("ResolvedTickets", fields: [resolvedById], references: [id])
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Comments/Updates
+  comments        TicketComment[]
+
+  // Metadata
+  metadata        Json?    // Browser info, page URL, etc.
+
+  @@index([companyId])
+  @@index([status])
+  @@index([priority])
+  @@index([reportedById])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+model TicketComment {
+  id          String   @id @default(uuid())
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  userName    String   // Cached for display
+  userRole    String   // SUPER_ADMIN, ADMIN, etc.
+
+  comment     String   @db.Text
+  attachments Json?    // Array of attachment URLs
+  isInternal  Boolean  @default(false) // Only visible to super admins
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+enum TicketCategory {
+  BUG
+  FEATURE_REQUEST
+  SUPPORT
+  DOCUMENTATION
+  PERFORMANCE
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_RESPONSE
+  RESOLVED
+  CLOSED
+  REOPENED
 }

@@ -48,6 +48,7 @@ export const getAuditLogs = async (req, res) => {
       severity,
       startDate,
       endDate,
+      search,
       limit = 100,
       offset = 0,
     } = req.query;
@@ -99,6 +100,7 @@ export const getAuditLogs = async (req, res) => {
       severity: severityFilter,
       startDate,
       endDate,
+      search,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -138,6 +140,7 @@ export const getAuditLogs = async (req, res) => {
           resource,
           category: categoryFilter,
           severity,
+          search,
           dateRange: startDate && endDate ? `${startDate} to ${endDate}` : null,
         },
         viewerRole: user.dspRole,
@@ -296,6 +299,7 @@ export const exportAuditLogs = async (req, res) => {
       severity,
       startDate,
       endDate,
+      search,
     } = req.query;
 
     let finalCompanyId = user.companyId;
@@ -311,15 +315,21 @@ export const exportAuditLogs = async (req, res) => {
       });
     }
 
+    // Convert "all" to undefined for filters
+    const actionFilter = action === 'all' ? undefined : action;
+    const categoryFilter = category === 'all' ? undefined : category;
+    const severityFilter = severity === 'all' ? undefined : severity;
+
     // Fetch all logs for export (no limit)
     const result = await auditService.getAuditLogs({
       companyId: finalCompanyId,
-      action,
+      action: actionFilter,
       resource,
-      category,
-      severity,
+      category: categoryFilter,
+      severity: severityFilter,
       startDate,
       endDate,
+      search,
       limit: 10000, // Max export limit
       offset: 0,
     });
@@ -340,7 +350,7 @@ export const exportAuditLogs = async (req, res) => {
         exportedCompanyId: finalCompanyId,
         recordCount: result.total,
         format,
-        filters: { action, resource, category, severity, startDate, endDate },
+        filters: { action: actionFilter, resource, category: categoryFilter, severity: severityFilter, search, startDate, endDate },
       },
     });
 
