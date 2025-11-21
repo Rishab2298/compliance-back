@@ -943,29 +943,6 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
     const scanResults = await Promise.all(
       documents.map(async (document) => {
         try {
-          // Check if AI is enabled for this document type
-          const documentTypeConfig = mergedConfigs[document.type];
-
-          if (!documentTypeConfig) {
-            return {
-              documentId: document.id,
-              success: false,
-              error: `Document type configuration not found for: ${document.type}`,
-              skipped: true,
-              reason: 'MISSING_CONFIG'
-            };
-          }
-
-          if (!documentTypeConfig.aiEnabled) {
-            return {
-              documentId: document.id,
-              success: false,
-              error: `AI extraction is disabled for document type: ${document.type}`,
-              skipped: true,
-              reason: 'AI_DISABLED'
-            };
-          }
-
           if (!document.s3Key) {
             // Track failed attempt (no S3 key)
             try {
@@ -1047,10 +1024,32 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
             console.log(`Document ${document.id} type already set: ${document.type} - using dynamic extraction`);
 
             detectedDocumentType = document.type;
-            finalDocumentTypeConfig = documentTypeConfig;
+            finalDocumentTypeConfig = mergedConfigs[document.type];
+
+            // Check if document type config exists
+            if (!finalDocumentTypeConfig) {
+              return {
+                documentId: document.id,
+                success: false,
+                error: `Document type configuration not found for: ${document.type}`,
+                skipped: true,
+                reason: 'MISSING_CONFIG'
+              };
+            }
+
+            // Check if AI is enabled for this document type
+            if (!finalDocumentTypeConfig.aiEnabled) {
+              return {
+                documentId: document.id,
+                success: false,
+                error: `AI extraction is disabled for document type: ${document.type}`,
+                skipped: true,
+                reason: 'AI_DISABLED'
+              };
+            }
 
             console.log(`Parsing document ${document.id} with OpenAI (Dynamic)...`);
-            const parseResult = await parseWithAIDynamic(textractData, documentTypeConfig, document.type);
+            const parseResult = await parseWithAIDynamic(textractData, finalDocumentTypeConfig, document.type);
             parsedData = parseResult.parsedData;
             usage = parseResult.usage;
             validation = parseResult.validation;
