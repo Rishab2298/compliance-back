@@ -7,6 +7,10 @@ import { sendSMS } from './smsService.js';
 let isDailyReminderRunning = false;
 let isCustomReminderRunning = false;
 
+// Store cron job instances for graceful shutdown
+let dailyReminderJob = null;
+let customReminderJob = null;
+
 /**
  * Helper function to create random delay between sends
  * Helps avoid spam detection and rate limits
@@ -26,7 +30,7 @@ export const startReminderCronJob = () => {
   // Run daily at 8:00 AM for document expiry reminders
   // Format: minute hour day month weekday
   // '0 8 * * *' = At 8:00 AM every day
-  cron.schedule('0 8 * * *', async () => {
+  dailyReminderJob = cron.schedule('0 8 * * *', async () => {
     // Check if previous execution is still running
     if (isDailyReminderRunning) {
       console.log('⚠️ Skipping daily reminders job - previous execution still running');
@@ -52,7 +56,7 @@ export const startReminderCronJob = () => {
 
   // Run every 15 minutes to check for custom reminders (increased from 10 to reduce load)
   // '*/15 * * * *' = Every 15 minutes
-  cron.schedule('*/15 * * * *', () => {
+  customReminderJob = cron.schedule('*/15 * * * *', () => {
     // Check if previous execution is still running
     if (isCustomReminderRunning) {
       console.log('⚠️ Skipping custom reminders check - previous execution still running');
@@ -622,4 +626,22 @@ async function sendCustomReminderNotification(reminder) {
 export const triggerReminderJobManually = async () => {
   console.log('🔔 Manually triggering reminders job...');
   return await sendDailyReminders();
+};
+
+/**
+ * Stop all cron jobs gracefully
+ * Used during application shutdown to prevent hanging processes
+ */
+export const stopReminderCronJob = () => {
+  console.log('🛑 Stopping reminder cron jobs...');
+
+  if (dailyReminderJob) {
+    dailyReminderJob.stop();
+    console.log('✅ Daily reminder job stopped');
+  }
+
+  if (customReminderJob) {
+    customReminderJob.stop();
+    console.log('✅ Custom reminder job stopped');
+  }
 };

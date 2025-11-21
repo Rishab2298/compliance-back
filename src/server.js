@@ -35,7 +35,7 @@ import { metricsMiddleware } from "./middleware/metricsMiddleware.js";
 import { requireMFA } from "./middleware/mfaMiddleware.js";
 import { initializeErrorTracking, errorHandlerMiddleware } from "./services/errorTracker.js";
 import companyRoutes from "./routes/compnayRoutes.js";
-import { startReminderCronJob } from "./services/reminderCronService.js";
+import { startReminderCronJob, stopReminderCronJob } from "./services/reminderCronService.js";
 import { handleStripeWebhook } from "./controllers/stripeWebhookController.js";
 import { healthCheck } from "./controllers/systemMetricsController.js";
 
@@ -475,17 +475,52 @@ app.post("/api/stripe-webhook", handleStripeWebhook);
 // Error handling middleware (must be last)
 app.use(errorHandlerMiddleware);
 
-  if (process.env.NODE_ENV === 'production') {
-    const privateKey = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/privkey.pem', 'utf8');
-    const certificate = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/fullchain.pem', 'utf8');
+// Store server instance for graceful shutdown
+let server;
 
-    https.createServer({ key: privateKey, cert: certificate }, app).listen(443, () => {
-      console.log("✅ Server running securely on port 443");
-      startReminderCronJob();
-    });
-  } else {
-    app.listen(5003, () => {
-      console.log("✅ Server running on port 5003");
-      startReminderCronJob();
-    });
+if (process.env.NODE_ENV === 'production') {
+  const privateKey = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/privkey.pem', 'utf8');
+  const certificate = fs.readFileSync('/opt/bitnami/apache/htdocs/certs/fullchain.pem', 'utf8');
+
+  server = https.createServer({ key: privateKey, cert: certificate }, app).listen(443, () => {
+    console.log("✅ Server running securely on port 443");
+    startReminderCronJob();
+  });
+} else {
+  server = app.listen(5003, () => {
+    console.log("✅ Server running on port 5003");
+    startReminderCronJob();
+  });
+}
+
+/**
+ * Graceful shutdown handler
+ * Ensures all resources are properly cleaned up on SIGTERM/SIGINT
+ */
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 ${signal} received. Starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    console.log('✅ Server closed - no longer accepting connections');
+  });
+
+  try {
+    // Stop cron jobs
+    stopReminderCronJob();
+
+    // Disconnect Prisma
+    await prisma.$disconnect();
+    console.log('✅ Prisma disconnected');
+
+    console.log('✅ Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error);
+    process.exit(1);
   }
+};
+
+// Handle termination signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
