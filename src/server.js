@@ -42,9 +42,10 @@ import { healthCheck } from "./controllers/systemMetricsController.js";
 const app = express();
 
 // Trust proxy - required for rate limiting and req.ip to work correctly
-// This allows Express to trust the X-Forwarded-* headers from proxies/load balancers
-// IMPORTANT: Set to true for production behind nginx, AWS ALB, Cloudflare, etc.
-app.set('trust proxy', true);
+// Set to 1 to trust only the first proxy (Apache/nginx on same server)
+// This prevents IP spoofing while allowing proper IP detection
+// See: https://expressjs.com/en/guide/behind-proxies.html
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(
