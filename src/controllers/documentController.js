@@ -230,6 +230,33 @@ export const updateDocumentDetails = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized access to document' });
     }
 
+    // Validate document type is active (if type is being updated)
+    if (type && type !== 'Pending Classification') {
+      const company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { documentTypeConfigs: true }
+      });
+
+      const { getDocumentTypeConfigs } = await import('../utils/documentTypeDefaults.js');
+      const mergedConfigs = getDocumentTypeConfigs(company.documentTypeConfigs);
+
+      // Check if document type exists and is active
+      const docTypeConfig = mergedConfigs[type];
+      if (!docTypeConfig) {
+        return res.status(400).json({
+          error: 'Invalid document type',
+          message: `Document type "${type}" is not configured for your company`
+        });
+      }
+
+      if (!docTypeConfig.isActive) {
+        return res.status(400).json({
+          error: 'Inactive document type',
+          message: `Document type "${type}" is not active. Please select an active document type.`
+        });
+      }
+    }
+
     // Calculate status based on expiry date
     let status = 'ACTIVE';
     if (expiryDate) {
