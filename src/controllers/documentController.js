@@ -237,8 +237,8 @@ export const updateDocumentDetails = async (req, res) => {
         select: { documentTypeConfigs: true }
       });
 
-      const { getDocumentTypeConfigs } = await import('../utils/documentTypeDefaults.js');
-      const mergedConfigs = getDocumentTypeConfigs(company.documentTypeConfigs);
+      const { mergeWithDefaults } = await import('../utils/documentTypeDefaults.js');
+      const mergedConfigs = mergeWithDefaults(company.documentTypeConfigs);
 
       // Check if document type exists and is active
       const docTypeConfig = mergedConfigs[type];
