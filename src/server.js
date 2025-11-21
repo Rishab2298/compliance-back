@@ -156,9 +156,12 @@ initializeErrorTracking();
 // Add metrics tracking middleware (tracks response times, errors, etc.)
 app.use(metricsMiddleware);
 
-// Sample route
+// Root endpoint (supports both GET and HEAD for uptime monitoring)
 app.get("/", (req, res) => {
   res.send("Compliance Backend is running");
+});
+app.head("/", (req, res) => {
+  res.status(200).end();
 });
 
 // Public health check endpoint (supports both GET and HEAD for uptime monitoring)
