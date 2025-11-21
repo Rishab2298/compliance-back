@@ -161,8 +161,9 @@ app.get("/", (req, res) => {
   res.send("Compliance Backend is running");
 });
 
-// Public health check endpoint
+// Public health check endpoint (supports both GET and HEAD for uptime monitoring)
 app.get("/api/health", healthCheck);
+app.head("/api/health", healthCheck);
 
 // Clerk sends JSON
 
