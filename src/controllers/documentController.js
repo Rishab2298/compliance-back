@@ -751,7 +751,7 @@ export const scanDocumentWithAI = async (req, res) => {
           userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
           userEmail: user.email,
           feature: 'DOCUMENT_ANALYSIS',
-          action: `AI scan of ${document.type || 'document'}`,
+          action: `AI scan of ${detectedDocumentType || 'document'}`,
           tokensUsed: usage.totalTokens,
           inputTokens: usage.promptTokens,
           outputTokens: usage.completionTokens,
@@ -762,8 +762,9 @@ export const scanDocumentWithAI = async (req, res) => {
           status: 'SUCCESS',
           metadata: {
             documentId,
-            documentType: document.type,
-            s3Key: document.s3Key
+            documentType: detectedDocumentType,
+            s3Key: document.s3Key,
+            wasClassified: !document.type || document.type === 'Pending Classification'
           },
           ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
           userAgent: req.headers['user-agent']
@@ -782,6 +783,7 @@ export const scanDocumentWithAI = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        documentType: detectedDocumentType,
         extractedData: parsedData,
         rawTextractData: textractData,
         creditsUsed: 1,
@@ -996,12 +998,58 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
           console.log(`Scanning document ${document.id} (${document.type}) with Textract...`);
           const textractData = await extractDocumentData(document.s3Key);
 
-          console.log(`Parsing document ${document.id} with OpenAI (Dynamic)...`);
-          const parseResult = await parseWithAIDynamic(textractData, documentTypeConfig, document.type);
-          const parsedData = parseResult.parsedData;
-          const usage = parseResult.usage;
-          const validation = parseResult.validation;
-          const metadata = parseResult.metadata;
+          let detectedDocumentType;
+          let parsedData;
+          let usage;
+          let validation;
+          let metadata;
+          let finalDocumentTypeConfig;
+
+          // If document type is NOT set or is "Pending Classification", use UNIFIED parsing (classify + extract in ONE call)
+          if (!document.type || document.type === 'Pending Classification') {
+            console.log(`Document ${document.id} type not set - using UNIFIED classification + extraction`);
+
+            // Use unified parsing (classifies AND extracts in single AI call)
+            const unifiedResult = await parseWithAIUnified(textractData, mergedConfigs);
+
+            detectedDocumentType = unifiedResult.detectedType;
+            finalDocumentTypeConfig = unifiedResult.documentTypeConfig;
+            parsedData = unifiedResult.parsedData;
+            usage = unifiedResult.usage;
+            validation = unifiedResult.validation;
+            metadata = unifiedResult.metadata;
+
+            console.log(`✅ Unified parsing complete for document ${document.id}:`, {
+              detectedType: detectedDocumentType,
+              confidence: metadata.confidence,
+              fieldsExtracted: usage.fieldsExtracted
+            });
+
+            // Check if AI is enabled for detected document type
+            if (!finalDocumentTypeConfig.aiEnabled) {
+              return {
+                documentId: document.id,
+                success: false,
+                error: `AI extraction is disabled for detected document type: ${detectedDocumentType}`,
+                skipped: true,
+                reason: 'AI_DISABLED_FOR_DETECTED_TYPE'
+              };
+            }
+
+          } else {
+            // Document type IS set, use standard dynamic parsing
+            console.log(`Document ${document.id} type already set: ${document.type} - using dynamic extraction`);
+
+            detectedDocumentType = document.type;
+            finalDocumentTypeConfig = documentTypeConfig;
+
+            console.log(`Parsing document ${document.id} with OpenAI (Dynamic)...`);
+            const parseResult = await parseWithAIDynamic(textractData, documentTypeConfig, document.type);
+            parsedData = parseResult.parsedData;
+            usage = parseResult.usage;
+            validation = parseResult.validation;
+            metadata = parseResult.metadata;
+          }
 
           // Track successful AI usage
           try {
@@ -1018,7 +1066,7 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
                 userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
                 userEmail: user.email,
                 feature: 'DOCUMENT_ANALYSIS',
-                action: `Bulk AI scan of ${document.type || 'document'}`,
+                action: `Bulk AI scan of ${detectedDocumentType || 'document'}`,
                 tokensUsed: usage.totalTokens,
                 inputTokens: usage.promptTokens,
                 outputTokens: usage.completionTokens,
@@ -1029,9 +1077,10 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
                 status: 'SUCCESS',
                 metadata: {
                   documentId: document.id,
-                  documentType: document.type,
+                  documentType: detectedDocumentType,
                   s3Key: document.s3Key,
-                  bulkScan: true
+                  bulkScan: true,
+                  wasClassified: !document.type || document.type === 'Pending Classification'
                 },
                 ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
                 userAgent: req.headers['user-agent']
@@ -1044,7 +1093,7 @@ export const bulkScanDocumentsWithAI = async (req, res) => {
 
           return {
             documentId: document.id,
-            documentType: document.type,
+            documentType: detectedDocumentType,
             success: true,
             extractedData: parsedData,
             rawTextractData: textractData,
