@@ -34,7 +34,6 @@ import { requirePolicyAcceptance } from "./middleware/policyAcceptanceMiddleware
 import { metricsMiddleware } from "./middleware/metricsMiddleware.js";
 import { requireMFA } from "./middleware/mfaMiddleware.js";
 import { initializeErrorTracking, errorHandlerMiddleware } from "./services/errorTracker.js";
-import { getAllUsers } from "./controllers/userController.js";
 import companyRoutes from "./routes/compnayRoutes.js";
 import { startReminderCronJob } from "./services/reminderCronService.js";
 import { handleStripeWebhook } from "./controllers/stripeWebhookController.js";
@@ -166,7 +165,8 @@ app.get("/api/health", healthCheck);
 
 // Clerk sends JSON
 
-app.use("/api/users", authMiddleware, requireMFA, getAllUsers);
+// User routes (MFA selectively applied per route in userRoutes.js)
+app.use("/api/users", userRoutes);
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/document-types", authMiddleware, requireMFA, requirePolicyAcceptance, documentTypeRoutes);
 app.use("/api/drivers", authMiddleware, requireMFA, requirePolicyAcceptance, driverRoutes);
