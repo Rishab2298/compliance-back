@@ -191,10 +191,10 @@ export const sendWelcomeEmail = async ({
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: `"DSP ComplianceManager" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: `Welcome to DSP ComplianceManager - ${companyName}`,
-      html: `
+      from: `"Complyo
+      " <${process.env.SMTP_USER}>`,to: email,
+      subject: `Welcome to Complyo
+       - ${companyName}`, html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -262,9 +262,11 @@ export const sendWelcomeEmail = async ({
         <body>
           <div class="container">
             <div class="content">
-              <h1 class="header">Welcome to DSP ComplianceManager!</h1>
+              <h1 class="header">Welcome to Complyo
+              !</h1>
               <p>Hello ${firstName},</p>
-              <p>We're thrilled to have you join <strong>${companyName}</strong> on DSP ComplianceManager. You've successfully completed the onboarding process and accepted all necessary policies.</p>
+              <p>We're thrilled to have you join <strong>${companyName}</strong> on Complyo
+              . You've successfully completed the onboarding process and accepted all necessary policies.</p>
 
               <div class="features">
                 <h3 style="color: #1f2937; margin-top: 0;">What you can do now:</h3>
@@ -282,8 +284,11 @@ export const sendWelcomeEmail = async ({
               <p>If you have any questions or need assistance, our support team is here to help. Feel free to reach out to us anytime.</p>
 
               <div class="footer">
-                <p><strong>Need help?</strong> Visit our Help Center or contact support at <a href="mailto:support@dspcompliance.com">support@dspcompliance.com</a></p>
-                <p style="margin-top: 10px;">You're receiving this email because you recently completed onboarding for DSP ComplianceManager.</p>
+                <p><strong>Need help?</strong> Visit our Help Center or contact support at <a href="mailto:support@complyo.io
+                ">support@complyo.io
+                </a></p>
+                <p style="margin-top: 10px;">You're receiving this email because you recently completed onboarding for Complyo
+                .</p>
               </div>
             </div>
           </div>
