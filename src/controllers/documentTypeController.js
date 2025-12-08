@@ -596,45 +596,37 @@ export const getDocumentTypes = async (req, res) => {
       });
     }
 
-    // If using new system
-    if (company.documentTypeConfigs && Object.keys(company.documentTypeConfigs).length > 0) {
-      const customConfigs = company.documentTypeConfigs || {};
-      const mergedConfigs = mergeWithDefaults(customConfigs);
+    // Always use new system with defaults - this ensures Free plan users get field configurations
+    const customConfigs = company.documentTypeConfigs || {};
+    const mergedConfigs = mergeWithDefaults(customConfigs);
 
-      // If includeFields=true, return full configurations for ACTIVE document types only
-      if (includeFields === 'true') {
-        const documentTypesWithFields = Object.entries(mergedConfigs)
-          .filter(([_, config]) => config.isActive) // Only active types
-          .map(([name, config]) => ({
-            name,
-            aiEnabled: config.aiEnabled,
-            isDefault: config.isDefault,
-            isActive: config.isActive,
-            extractionMode: config.extractionMode,
-            fields: config.fields,
-            description: config.description
-          }));
-
-        return res.status(200).json({
-          success: true,
-          data: documentTypesWithFields,
-        });
-      }
-
-      // Default: return just names for backward compatibility (only ACTIVE ones)
-      const activeConfigs = Object.entries(mergedConfigs).filter(([_, config]) => config.isActive);
-      const typeNames = activeConfigs.map(([name, _]) => name);
+    // If includeFields=true, return full configurations for ACTIVE document types only
+    if (includeFields === 'true') {
+      const documentTypesWithFields = Object.entries(mergedConfigs)
+        .filter(([_, config]) => config.isActive) // Only active types
+        .map(([name, config]) => ({
+          name,
+          aiEnabled: config.aiEnabled,
+          isDefault: config.isDefault,
+          isActive: config.isActive,
+          extractionMode: config.extractionMode,
+          fields: config.fields,
+          description: config.description
+        }));
 
       return res.status(200).json({
         success: true,
-        data: typeNames,
+        data: documentTypesWithFields,
       });
     }
 
-    // Fallback to old documentTypes array (just names)
-    res.status(200).json({
+    // Default: return just names for backward compatibility (only ACTIVE ones)
+    const activeConfigs = Object.entries(mergedConfigs).filter(([_, config]) => config.isActive);
+    const typeNames = activeConfigs.map(([name, _]) => name);
+
+    return res.status(200).json({
       success: true,
-      data: company.documentTypes || [],
+      data: typeNames,
     });
   } catch (error) {
     console.error('Error fetching document types:', error);

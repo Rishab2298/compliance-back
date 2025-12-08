@@ -246,7 +246,7 @@ class MFAService {
         where: {
           userId,
           success: false,
-          timestamp: {
+          createdAt: {
             gte: fifteenMinutesAgo,
           },
         },
@@ -385,7 +385,7 @@ class MFAService {
         where: {
           userId,
           success: false,
-          timestamp: {
+          createdAt: {
             gte: fifteenMinutesAgo,
           },
         },

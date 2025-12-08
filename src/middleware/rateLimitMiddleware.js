@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { ipKeyGenerator } from 'express-rate-limit';
 import auditService from '../services/auditService.js';
 import prisma from '../../prisma/client.js';
 
@@ -17,9 +18,9 @@ import prisma from '../../prisma/client.js';
  * - Server overload from concurrent AI operations
  *
  * SECURITY NOTE:
- * - Removed custom keyGenerator to use express-rate-limit's default
- * - Default properly handles both IPv4 and IPv6 addresses
- * - Prevents IPv6 bypass vulnerability (ERR_ERL_KEY_GEN_IPV6)
+ * - Uses custom keyGenerator that validates trust proxy configuration
+ * - Server is behind Apache proxy with 'trust proxy' set to 1
+ * - This prevents IP spoofing while allowing proper IP detection
  */
 export const aiScanRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
@@ -32,8 +33,9 @@ export const aiScanRateLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
-  // Use default keyGenerator (properly handles IPv4 and IPv6)
-  // Default uses req.ip which is set by Express trust proxy
+  // Use ipKeyGenerator helper for proper IPv4/IPv6 handling
+  // This works with 'trust proxy' set to 1 (Apache proxy)
+  keyGenerator: ipKeyGenerator,
   // Custom handler for when limit is exceeded
   handler: async (req, res) => {
     console.warn(`[RATE LIMIT] AI scan rate limit exceeded for IP: ${req.ip}`);
@@ -105,7 +107,8 @@ export const aiScanRateLimiter = rateLimit({
  * - Applies only to bulk scan endpoint
  *
  * SECURITY NOTE:
- * - Uses default keyGenerator for proper IPv4/IPv6 handling
+ * - Uses custom keyGenerator that validates trust proxy configuration
+ * - Server is behind Apache proxy with 'trust proxy' set to 1
  */
 export const bulkAiScanRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
@@ -118,7 +121,8 @@ export const bulkAiScanRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use default keyGenerator (properly handles IPv4 and IPv6)
+  // Use ipKeyGenerator helper for proper IPv4/IPv6 handling
+  keyGenerator: ipKeyGenerator,
   handler: async (req, res) => {
     console.warn(`[RATE LIMIT] Bulk AI scan rate limit exceeded for IP: ${req.ip}`);
 
@@ -183,7 +187,8 @@ export const bulkAiScanRateLimiter = rateLimit({
  * - Can be applied globally or to specific route groups
  *
  * SECURITY NOTE:
- * - Uses default keyGenerator for proper IPv4/IPv6 handling
+ * - Uses custom keyGenerator that validates trust proxy configuration
+ * - Server is behind Apache proxy with 'trust proxy' set to 1
  */
 export const generalApiRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
@@ -195,7 +200,8 @@ export const generalApiRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use default keyGenerator (properly handles IPv4 and IPv6)
+  // Use ipKeyGenerator helper for proper IPv4/IPv6 handling
+  keyGenerator: ipKeyGenerator,
   skip: (req) => {
     // Skip rate limiting for health check endpoints
     return req.path === '/health' || req.path === '/api/health';
