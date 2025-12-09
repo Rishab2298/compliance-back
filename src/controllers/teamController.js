@@ -244,8 +244,11 @@ export const inviteTeamMember = async (req, res) => {
           expiresInSeconds: 604800, // 7 days
         });
 
-        passwordResetUrl = signInToken.url;
-        console.log('✅ Sign-in token generated');
+        // Extract token and construct URL with production frontend URL
+        const token = signInToken.token;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        passwordResetUrl = `${frontendUrl}/sign-in?ticket=${token}`;
+        console.log('✅ Sign-in token generated with frontend URL:', frontendUrl);
 
         // Step 4: Create TeamInvitation record
         teamInvitation = await prisma.teamInvitation.create({
