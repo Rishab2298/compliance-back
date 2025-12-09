@@ -47,7 +47,7 @@ export const sendDriverInvitationEmail = async ({
     const transporter = createTransporter();
 
     const documentList = requestedDocuments
-      .map((doc) => `<li>${doc}</li>`)
+      .map((doc) => `<div class="document-item">${doc}</div>`)
       .join('');
 
     const mailOptions = {
@@ -58,73 +58,258 @@ export const sendDriverInvitationEmail = async ({
         <!DOCTYPE html>
         <html>
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
             body {
-              font-family: Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #333;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
             }
             .container {
               max-width: 600px;
               margin: 0 auto;
-              padding: 20px;
-              background-color: #f9f9f9;
-            }
-            .content {
-              background-color: white;
-              padding: 30px;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
             }
             .header {
-              color: #2563eb;
-              margin-bottom: 20px;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+              padding: 40px 30px;
+              text-align: center;
+            }
+            .header-icon {
+              font-size: 48px;
+              margin-bottom: 12px;
+            }
+            .header-title {
+              color: #ffffff;
+              font-size: 26px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              font-weight: 600;
+              color: #1f2937;
+              margin-bottom: 16px;
+            }
+            .text {
+              color: #4b5563;
+              margin-bottom: 16px;
+              font-size: 15px;
+            }
+            .highlight-box {
+              background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+              border-left: 4px solid #2563eb;
+              padding: 24px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .documents-title {
+              color: #1e40af;
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 16px;
+            }
+            .document-item {
+              color: #1e40af;
+              margin: 10px 0;
+              padding-left: 28px;
+              position: relative;
+              font-size: 15px;
+            }
+            .document-item:before {
+              content: "📄";
+              position: absolute;
+              left: 0;
+              font-size: 16px;
+            }
+            .cta-container {
+              text-align: center;
+              margin: 32px 0;
             }
             .button {
               display: inline-block;
-              padding: 12px 30px;
-              background-color: #2563eb;
-              color: white;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+              color: #ffffff !important;
               text-decoration: none;
-              border-radius: 6px;
+              border-radius: 10px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+              transition: all 0.3s ease;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+            }
+            .link-box {
+              background-color: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 16px;
               margin: 20px 0;
             }
-            .documents {
-              background-color: #eff6ff;
-              padding: 15px;
-              border-radius: 6px;
-              margin: 20px 0;
+            .link-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .link {
+              word-break: break-all;
+              color: #2563eb;
+              font-size: 13px;
+              text-decoration: none;
+            }
+            .info-box {
+              background-color: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              padding: 16px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .info-text {
+              color: #92400e;
+              font-size: 14px;
+              margin: 0;
+            }
+            .security-box {
+              background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+              border-left: 4px solid #10b981;
+              padding: 16px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .security-text {
+              color: #065f46;
+              font-size: 14px;
+              margin: 0;
             }
             .footer {
-              margin-top: 20px;
-              font-size: 12px;
-              color: #666;
+              background-color: #f9fafb;
+              padding: 30px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .footer-link {
+              color: #2563eb;
+              text-decoration: none;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+            @media only screen and (max-width: 600px) {
+              .email-wrapper {
+                padding: 20px 0;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .header-title {
+                font-size: 22px;
+              }
+              .content {
+                padding: 30px 20px;
+              }
+              .button {
+                padding: 14px 32px;
+                font-size: 15px;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="content">
-              <h1 class="header">Document Upload Request</h1>
-              <p>Hello ${driverName},</p>
-              <p>${companyName} has requested you to upload the following documents:</p>
-
-              <div class="documents">
-                <h3>Required Documents:</h3>
-                <ul>
-                  ${documentList}
-                </ul>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header with gradient background -->
+              <div class="header">
+                <div class="header-icon">📋</div>
+                <h1 class="header-title">Document Upload Request</h1>
               </div>
 
-              <p>Please click the button below to securely upload your documents:</p>
+              <!-- Main content -->
+              <div class="content">
+                <p class="greeting">Hello ${driverName},</p>
 
-              <a href="${uploadLink}" class="button">Upload Documents</a>
+                <p class="text">
+                  <strong>${companyName}</strong> has requested you to upload the following documents for compliance verification.
+                </p>
 
-              <p>Or copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; color: #2563eb;">${uploadLink}</p>
+                <!-- Required documents box -->
+                <div class="highlight-box">
+                  <div class="documents-title">📝 Required Documents</div>
+                  ${documentList}
+                </div>
 
+                <!-- Security information -->
+                <div class="security-box">
+                  <p class="security-text">
+                    <strong>🔒 Secure Upload:</strong> Your documents will be encrypted and stored securely. Only authorized personnel at ${companyName} will have access.
+                  </p>
+                </div>
+
+                <div class="divider"></div>
+
+                <p class="text" style="text-align: center; font-weight: 600;">
+                  Click the button below to securely upload your documents:
+                </p>
+
+                <!-- CTA Button -->
+                <div class="cta-container">
+                  <a href="${uploadLink}" class="button">Upload Documents →</a>
+                </div>
+
+                <!-- Alternative link -->
+                <div class="link-box">
+                  <p class="link-text">Or copy and paste this link into your browser:</p>
+                  <a href="${uploadLink}" class="link">${uploadLink}</a>
+                </div>
+
+                <!-- Important info box -->
+                <div class="info-box">
+                  <p class="info-text">
+                    <strong>⏰ Important:</strong> This upload link will expire in 7 days. Please complete your document upload soon. If you have any questions, contact ${companyName} directly.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Footer -->
               <div class="footer">
-                <p><strong>Note:</strong> This link will expire in 7 days. If you have any questions, please contact ${companyName} directly.</p>
+                <p class="footer-text">
+                  <strong>Need help?</strong> If you encounter any issues, please reach out to your contact at <strong>${companyName}</strong>.
+                </p>
+                <p class="footer-text">
+                  This is an automated message from the ${companyName} compliance system.
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. All rights reserved.
+                </p>
               </div>
             </div>
           </div>
@@ -139,6 +324,305 @@ export const sendDriverInvitationEmail = async ({
   } catch (error) {
     console.error('Error sending email:', error);
     throw new Error(`Failed to send email: ${error.message}`);
+  }
+};
+
+/**
+ * Send admin notification email when driver uploads document
+ * @param {Object} params - Email parameters
+ * @param {string} params.email - Admin email
+ * @param {string} params.adminName - Admin's name
+ * @param {string} params.driverName - Driver who uploaded the document
+ * @param {string} params.documentType - Type of document uploaded
+ * @param {string} params.companyName - Company name
+ * @param {string} params.reviewUrl - URL to review the document
+ * @param {Date} params.uploadedAt - When the document was uploaded
+ */
+export const sendDocumentUploadNotificationEmail = async ({
+  email,
+  adminName,
+  driverName,
+  documentType,
+  companyName,
+  reviewUrl,
+  uploadedAt,
+}) => {
+  try {
+    const transporter = createTransporter();
+
+    // Format document type for display
+    // Handle both snake_case (e.g., "drivers_licence") and already formatted strings (e.g., "Driver's Licence, Insurance")
+    const documentTypeDisplay = typeof documentType === 'string'
+      ? (documentType.includes('_')
+          ? documentType.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+          : documentType)
+      : 'Unknown Document';
+
+    // Format upload time
+    const uploadTime = new Date(uploadedAt).toLocaleString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const mailOptions = {
+      from: `"${companyName}" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: `New Document Uploaded: ${documentTypeDisplay} - ${driverName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            }
+            .header {
+              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 50%, #9333ea 100%);
+              padding: 40px 30px;
+              text-align: center;
+            }
+            .header-icon {
+              font-size: 48px;
+              margin-bottom: 12px;
+            }
+            .header-title {
+              color: #ffffff;
+              font-size: 26px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              font-weight: 600;
+              color: #1f2937;
+              margin-bottom: 16px;
+            }
+            .text {
+              color: #4b5563;
+              margin-bottom: 16px;
+              font-size: 15px;
+            }
+            .highlight-box {
+              background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+              border-left: 4px solid #8b5cf6;
+              padding: 24px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .detail-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 12px 0;
+              padding: 8px 0;
+              border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+            }
+            .detail-row:last-child {
+              border-bottom: none;
+            }
+            .detail-label {
+              font-weight: 600;
+              color: #6b21a8;
+              font-size: 14px;
+            }
+            .detail-value {
+              color: #7c3aed;
+              font-size: 14px;
+              font-weight: 500;
+            }
+            .cta-container {
+              text-align: center;
+              margin: 32px 0;
+            }
+            .button {
+              display: inline-block;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 50%, #9333ea 100%);
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 10px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+              transition: all 0.3s ease;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
+            }
+            .info-box {
+              background-color: #faf5ff;
+              border-left: 4px solid #8b5cf6;
+              padding: 16px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .info-text {
+              color: #6b21a8;
+              font-size: 14px;
+              margin: 0;
+            }
+            .footer {
+              background-color: #f9fafb;
+              padding: 30px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .footer-link {
+              color: #8b5cf6;
+              text-decoration: none;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+            @media only screen and (max-width: 600px) {
+              .email-wrapper {
+                padding: 20px 0;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .header-title {
+                font-size: 22px;
+              }
+              .content {
+                padding: 30px 20px;
+              }
+              .button {
+                padding: 14px 32px;
+                font-size: 15px;
+              }
+              .detail-row {
+                flex-direction: column;
+                gap: 4px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header with gradient background -->
+              <div class="header">
+               
+                <h1 class="header-title">New Document Uploaded</h1>
+              </div>
+
+              <!-- Main content -->
+              <div class="content">
+                <p class="greeting">Hello ${adminName},</p>
+
+                <p class="text">
+                  <strong>${driverName}</strong> has uploaded a new document to your compliance system.
+                </p>
+
+                <!-- Document details box -->
+                <div class="highlight-box">
+                  <div class="detail-row">
+                    <span class="detail-label">Driver Name:</span>
+                    <span class="detail-value">${driverName}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Document Type:</span>
+                    <span class="detail-value">${documentTypeDisplay}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Uploaded At:</span>
+                    <span class="detail-value">${uploadTime}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">⏳ Pending Review</span>
+                  </div>
+                </div>
+
+                <p class="text">
+                  The document has been securely uploaded and is ready for your review. Please verify the document details and approve or reject it as needed.
+                </p>
+
+                <div class="divider"></div>
+
+                <p class="text" style="text-align: center; font-weight: 600;">
+                  Review and take action on this document:
+                </p>
+
+                <!-- CTA Button -->
+                <div class="cta-container">
+                  <a href="${reviewUrl}" class="button">Review Document →</a>
+                </div>
+
+                <!-- Info box -->
+                <div class="info-box">
+                  <p class="info-text">
+                    <strong>💡 Quick Tip:</strong> Timely document review helps maintain compliance and keeps your drivers on track.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="footer">
+                <p class="footer-text">
+                  Access your dashboard at:
+                  <a href="${process.env.FRONTEND_URL || 'https://complyo.io'}/client/dashboard" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.io'}</a>
+                </p>
+                <p class="footer-text">
+                  This is an automated notification from your ${companyName} compliance system.
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. All rights reserved.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Document upload notification sent to ${email}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending document upload notification email:', error);
+    throw new Error(`Failed to send document upload notification: ${error.message}`);
   }
 };
 
@@ -191,57 +675,97 @@ export const sendWelcomeEmail = async ({
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: `"Complyo
-      " <${process.env.SMTP_USER}>`,to: email,
-      subject: `Welcome to Complyo
-       - ${companyName}`, html: `
+      from: `"Complyo" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: `Welcome to Complyo - ${companyName}`,
+      html: `
         <!DOCTYPE html>
         <html>
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
             body {
-              font-family: Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #333;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
             }
             .container {
               max-width: 600px;
               margin: 0 auto;
-              padding: 20px;
-              background-color: #f9f9f9;
-            }
-            .content {
-              background-color: white;
-              padding: 30px;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
             }
             .header {
-              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 50%, #a855f7 100%);
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              background-clip: text;
-              margin-bottom: 20px;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+              padding: 40px 30px;
+              text-align: center;
             }
-            .button {
-              display: inline-block;
-              padding: 12px 30px;
-              background: linear-gradient(135deg, #2563eb 0%, #8b5cf6 100%);
-              color: white;
-              text-decoration: none;
-              border-radius: 6px;
-              margin: 20px 0;
+            .header-title {
+              color: #ffffff;
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              font-weight: 600;
+              color: #1f2937;
+              margin-bottom: 16px;
+            }
+            .text {
+              color: #4b5563;
+              margin-bottom: 16px;
+              font-size: 15px;
+            }
+            .success-box {
+              background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+              border-left: 4px solid #10b981;
+              padding: 20px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .success-text {
+              color: #065f46;
+              font-size: 15px;
+              margin: 0;
             }
             .features {
-              background-color: #eff6ff;
-              padding: 20px;
-              border-radius: 6px;
-              margin: 20px 0;
+              background-color: #f9fafb;
+              padding: 24px;
+              border-radius: 8px;
+              margin: 24px 0;
+              border: 1px solid #e5e7eb;
+            }
+            .features-title {
+              color: #1f2937;
+              font-size: 16px;
+              font-weight: 600;
+              margin-bottom: 16px;
             }
             .feature-item {
-              margin: 10px 0;
-              padding-left: 20px;
+              color: #4b5563;
+              margin: 12px 0;
+              padding-left: 28px;
               position: relative;
+              font-size: 15px;
             }
             .feature-item:before {
               content: "✓";
@@ -249,46 +773,129 @@ export const sendWelcomeEmail = async ({
               left: 0;
               color: #2563eb;
               font-weight: bold;
+              font-size: 18px;
+            }
+            .cta-container {
+              text-align: center;
+              margin: 32px 0;
+            }
+            .button {
+              display: inline-block;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 10px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+              transition: all 0.3s ease;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
             }
             .footer {
-              margin-top: 20px;
-              font-size: 12px;
-              color: #666;
+              background-color: #f9fafb;
+              padding: 30px;
               border-top: 1px solid #e5e7eb;
-              padding-top: 20px;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .footer-link {
+              color: #2563eb;
+              text-decoration: none;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+            @media only screen and (max-width: 600px) {
+              .email-wrapper {
+                padding: 20px 0;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .header-title {
+                font-size: 24px;
+              }
+              .content {
+                padding: 30px 20px;
+              }
+              .button {
+                padding: 14px 32px;
+                font-size: 15px;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="content">
-              <h1 class="header">Welcome to Complyo
-              !</h1>
-              <p>Hello ${firstName},</p>
-              <p>We're thrilled to have you join <strong>${companyName}</strong> on Complyo
-              . You've successfully completed the onboarding process and accepted all necessary policies.</p>
-
-              <div class="features">
-                <h3 style="color: #1f2937; margin-top: 0;">What you can do now:</h3>
-                <div class="feature-item">Manage and track driver documents</div>
-                <div class="feature-item">Monitor compliance scores in real-time</div>
-                <div class="feature-item">Set up automated reminders for expiring documents</div>
-                <div class="feature-item">Generate compliance reports</div>
-                <div class="feature-item">Collaborate with your team</div>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header with gradient background -->
+              <div class="header">
+                <h1 class="header-title">🎉 Welcome to Complyo</h1>
               </div>
 
-              <p>Click the button below to access your dashboard and get started:</p>
+              <!-- Main content -->
+              <div class="content">
+                <p class="greeting">Hello ${firstName},</p>
 
-              <a href="${dashboardUrl}" class="button">Go to Dashboard</a>
+                <p class="text">
+                  We're thrilled to have you join <strong>${companyName}</strong> on Complyo, your comprehensive compliance management platform.
+                </p>
 
-              <p>If you have any questions or need assistance, our support team is here to help. Feel free to reach out to us anytime.</p>
+                <!-- Success message box -->
+                <div class="success-box">
+                  <p class="success-text">
+                    <strong>✓ Onboarding Complete!</strong> You've successfully completed the onboarding process and accepted all necessary policies.
+                  </p>
+                </div>
 
+                <!-- Features section -->
+                <div class="features">
+                  <div class="features-title">What you can do now:</div>
+                  <div class="feature-item">Manage and track driver documents</div>
+                  <div class="feature-item">Monitor compliance scores in real-time</div>
+                  <div class="feature-item">Set up automated reminders for expiring documents</div>
+                  <div class="feature-item">Generate comprehensive compliance reports</div>
+                  <div class="feature-item">Collaborate seamlessly with your team</div>
+                </div>
+
+                <div class="divider"></div>
+
+                <p class="text" style="text-align: center; font-weight: 600;">
+                  Ready to get started? Access your dashboard:
+                </p>
+
+                <!-- CTA Button -->
+                <div class="cta-container">
+                  <a href="${dashboardUrl}" class="button">Go to Dashboard →</a>
+                </div>
+
+                <p class="text" style="text-align: center;">
+                  If you have any questions or need assistance, our support team is here to help.
+                </p>
+              </div>
+
+              <!-- Footer -->
               <div class="footer">
-                <p><strong>Need help?</strong> Visit our Help Center or contact support at <a href="mailto:support@complyo.io
-                ">support@complyo.io
-                </a></p>
-                <p style="margin-top: 10px;">You're receiving this email because you recently completed onboarding for Complyo
-                .</p>
+                <p class="footer-text">
+                  <strong>Need help?</strong> Contact support at <a href="mailto:support@complyo.io" class="footer-link">support@complyo.io</a>
+                </p>
+                <p class="footer-text">
+                  You're receiving this email because you recently completed onboarding for Complyo.
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. All rights reserved.
+                </p>
               </div>
             </div>
           </div>
@@ -343,86 +950,254 @@ export const sendTeamInvitationEmail = async ({
     const mailOptions = {
       from: `"${companyName}" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: `You've been invited to join ${companyName} on LogiLink`,
+      subject: `${inviterName} invited you to join ${companyName} on Complyo`,
+
       html: `
         <!DOCTYPE html>
         <html>
         <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
             body {
-              font-family: Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #333;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
             }
             .container {
               max-width: 600px;
               margin: 0 auto;
-              padding: 20px;
-              background-color: #f9f9f9;
-            }
-            .content {
-              background-color: white;
-              padding: 30px;
-              border-radius: 8px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
             }
             .header {
-              color: #2563eb;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+              padding: 40px 30px;
+              text-align: center;
+            }
+            .logo {
+              max-width: 180px;
+              height: auto;
               margin-bottom: 20px;
             }
-            .button {
-              display: inline-block;
-              padding: 12px 30px;
-              background-color: #2563eb;
-              color: white;
-              text-decoration: none;
-              border-radius: 6px;
-              margin: 20px 0;
+            .header-title {
+              color: #ffffff;
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              font-weight: 600;
+              color: #1f2937;
+              margin-bottom: 16px;
+            }
+            .text {
+              color: #4b5563;
+              margin-bottom: 16px;
+              font-size: 15px;
+            }
+            .highlight-box {
+              background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+              border-left: 4px solid #2563eb;
+              padding: 20px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .role-label {
+              font-size: 13px;
+              font-weight: 600;
+              color: #6b7280;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 8px;
             }
             .role-badge {
               display: inline-block;
-              background-color: #eff6ff;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+              color: #ffffff;
+              padding: 10px 20px;
+              border-radius: 8px;
+              font-weight: 700;
+              font-size: 16px;
+              box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+            }
+            .cta-container {
+              text-align: center;
+              margin: 32px 0;
+            }
+            .button {
+              display: inline-block;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 10px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+              transition: all 0.3s ease;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+            }
+            .link-box {
+              background-color: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 20px 0;
+            }
+            .link-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .link {
+              word-break: break-all;
               color: #2563eb;
-              padding: 8px 16px;
-              border-radius: 6px;
-              font-weight: bold;
-              margin: 10px 0;
+              font-size: 13px;
+              text-decoration: none;
+            }
+            .info-box {
+              background-color: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              padding: 16px;
+              margin: 24px 0;
+              border-radius: 8px;
+            }
+            .info-text {
+              color: #92400e;
+              font-size: 14px;
+              margin: 0;
             }
             .footer {
-              margin-top: 30px;
-              padding-top: 20px;
+              background-color: #f9fafb;
+              padding: 30px;
               border-top: 1px solid #e5e7eb;
-              font-size: 12px;
-              color: #666;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .footer-link {
+              color: #2563eb;
+              text-decoration: none;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+            @media only screen and (max-width: 600px) {
+              .email-wrapper {
+                padding: 20px 0;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .header-title {
+                font-size: 24px;
+              }
+              .content {
+                padding: 30px 20px;
+              }
+              .button {
+                padding: 14px 32px;
+                font-size: 15px;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="content">
-              <h1 class="header">Welcome to LogiLink!</h1>
-              <p>Hello ${firstName} ${lastName},</p>
-              <p><strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong>'s team on LogiLink.</p>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header with gradient background -->
+              <div class="header">
+                <!-- Company logo placeholder - will use text for now -->
+                <h1 class="header-title">Complyo</h1>
+              </div>
 
-              <p>You've been assigned the role of:</p>
-              <div class="role-badge">${roleDisplay}</div>
+              <!-- Main content -->
+              <div class="content">
+                <p class="greeting">Hello ${firstName} ${lastName},</p>
 
-              <p>An account has been created for you with the email address: <strong>${email}</strong></p>
+                <p class="text">
+                  <strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong>'s team on Complyo, a comprehensive compliance management platform.
+                </p>
 
-              <p>LogiLink is a comprehensive compliance management platform that helps companies manage drivers, documents, and compliance requirements efficiently.</p>
+                <!-- Role assignment box -->
+                <div class="highlight-box">
+                  <div class="role-label">Your Assigned Role</div>
+                  <div class="role-badge">${roleDisplay}</div>
+                </div>
 
-              <p>To get started, you need to set up your password. Click the button below:</p>
+                <p class="text">
+                  An account has been created for you with the email address: <strong>${email}</strong>
+                </p>
 
-              <a href="${invitationUrl}" class="button">Set Your Password</a>
+                <p class="text">
+                  With Complyo, you can manage drivers, track documents, monitor compliance scores in real-time, and collaborate with your team—all in one place.
+                </p>
 
-              <p>Or copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; color: #2563eb;">${invitationUrl}</p>
+                <div class="divider"></div>
 
+                <p class="text" style="text-align: center; font-weight: 600;">
+                  To get started, set up your password:
+                </p>
+
+                <!-- CTA Button -->
+                <div class="cta-container">
+                  <a href="${invitationUrl}" class="button">Set Up Your Password →</a>
+                </div>
+
+                <!-- Alternative link -->
+                <div class="link-box">
+                  <p class="link-text">Or copy and paste this link into your browser:</p>
+                  <a href="${invitationUrl}" class="link">${invitationUrl}</a>
+                </div>
+
+                <!-- Important info box -->
+                <div class="info-box">
+                  <p class="info-text">
+                    <strong>⏰ Important:</strong> This password setup link will expire in 7 days. Make sure to complete your setup soon!
+                  </p>
+                </div>
+              </div>
+
+              <!-- Footer -->
               <div class="footer">
-                <p><strong>Note:</strong> This password setup link will expire in 7 days.</p>
-                <p>Once you've set your password, you can log in at: <strong>${process.env.FRONTEND_URL || 'https://app.logilink.com'}</strong></p>
-                <p>If you have any questions, please contact your team administrator.</p>
-                <p>© ${new Date().getFullYear()} LogiLink. All rights reserved.</p>
+                <p class="footer-text">
+                  Once you've set your password, you can log in at:
+                  <a href="${process.env.FRONTEND_URL || 'https://complyo.io'}" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.io'}</a>
+                </p>
+                <p class="footer-text">
+                  Questions? Contact your team administrator at <strong>${companyName}</strong>.
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. All rights reserved.
+                </p>
               </div>
             </div>
           </div>

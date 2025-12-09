@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkLimit } from '../services/billingService.js';
 import { getPlanLimits } from '../config/planLimits.js';
 import auditService from '../services/auditService.js';
+import { notifyDriverCreated, notifyBulkDriversCreated } from '../services/notificationService.js';
 
 // Validation schema for creating a driver
 const createDriverSchema = z.object({
@@ -101,6 +102,17 @@ export const createDriver = async (req, res) => {
       ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
       userAgent: req.headers["user-agent"],
     });
+
+    // Create notification for new driver
+    try {
+      await notifyDriverCreated({
+        companyId: company.id,
+        driverId: driver.id,
+        driverName: driver.name,
+      });
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+    }
 
     // Return success response
     return res.status(201).json({
@@ -579,6 +591,20 @@ export const bulkImportDrivers = async (req, res) => {
       ipAddress: req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress,
       userAgent: req.headers["user-agent"],
     });
+
+    // Send notification for bulk driver import (only if at least one driver was created)
+    if (results.successful.length > 0) {
+      try {
+        await notifyBulkDriversCreated({
+          companyId: company.id,
+          count: results.successful.length,
+          // Only send first 10 driver names to avoid memory issues with large imports
+          driverNames: results.successful.slice(0, 10).map(d => d.name),
+        });
+      } catch (notificationError) {
+        console.error('Error creating bulk import notification:', notificationError);
+      }
+    }
 
     return res.status(200).json({
       message: `Bulk import completed. ${results.successful.length} drivers created, ${results.failed.length} failed.`,

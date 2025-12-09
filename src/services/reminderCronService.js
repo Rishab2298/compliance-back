@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import prisma from '../../prisma/client.js';
 import { sendEmail } from './emailService.js';
 import { sendSMS } from './smsService.js';
+import { notifyReminderSent } from './notificationService.js';
 
 // Mutex locks to prevent overlapping executions
 let isDailyReminderRunning = false;
@@ -371,7 +372,7 @@ async function sendReminderNotifications(company, driver, document, daysUntilExp
   const success = emailSuccess || smsSuccess;
 
   try {
-    await prisma.documentReminder.create({
+    const reminder = await prisma.documentReminder.create({
       data: {
         documentId: document.id,
         daysBeforeExpiry: daysUntilExpiry,
@@ -382,6 +383,20 @@ async function sendReminderNotifications(company, driver, document, daysUntilExp
         message: message,
       },
     });
+
+    // Create notification for reminder sent
+    if (success) {
+      try {
+        await notifyReminderSent({
+          companyId: company.id,
+          reminderId: reminder.id,
+          count: 1,
+          reminderType: `${document.type} expiring in ${daysUntilExpiry} days`,
+        });
+      } catch (notificationError) {
+        console.error('Error creating notification:', notificationError);
+      }
+    }
   } catch (error) {
     console.error('Failed to record reminder in database:', error);
   }

@@ -42,6 +42,7 @@ model User {
   ticketsAssigned   Ticket[]               @relation("AssignedTickets")
   ticketsResolved   Ticket[]               @relation("ResolvedTickets")
   ticketComments    TicketComment[]
+  notifications     Notification[]
 }
 
 model Company {
@@ -964,4 +965,75 @@ enum TicketStatus {
   RESOLVED
   CLOSED
   REOPENED
+}
+
+model Notification {
+  id          String                @id @default(uuid())
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId   String
+
+  type        NotificationEventType
+  title       String
+  message     String                @db.Text
+
+  // Action/Link
+  actionUrl   String?               // URL to navigate when clicked
+
+  // Related entities (optional)
+  driverId    String?               // If related to a driver
+  documentId  String?               // If related to a document
+  reminderId  String?               // If related to a reminder
+  ticketId    String?               // If related to a ticket
+
+  // Status
+  read        Boolean               @default(false)
+  readAt      DateTime?
+
+  // Metadata
+  metadata    Json?                 // Additional data
+
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([type])
+  @@index([read])
+  @@index([createdAt])
+}
+
+enum NotificationEventType {
+  // Driver & Document Related
+  DOCUMENT_UPLOADED
+  DOCUMENT_EXPIRING
+  DOCUMENT_EXPIRED
+  DRIVER_CREATED
+  DOCUMENT_NEEDS_REVIEW
+  DOCUMENT_APPROVED
+  DOCUMENT_REJECTED
+  DRIVER_COMPLIANCE_ALERT
+
+  // Reminder Related
+  REMINDER_SENT
+  REMINDER_FAILED
+
+  // Team Management
+  TEAM_MEMBER_INVITED
+  TEAM_MEMBER_JOINED
+  TEAM_MEMBER_REMOVED
+  TEAM_ROLE_CHANGED
+
+  // Billing & Subscription
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_RENEWED
+
+  // Support & System
+  TICKET_CREATED
+  TICKET_REPLIED
+  TICKET_RESOLVED
+  SYSTEM_UPDATE
 }

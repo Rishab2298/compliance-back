@@ -27,6 +27,7 @@ import settingsRoutes from "./routes/settingsRoutes.js";
 import errorLogRoutes from "./routes/errorLogRoutes.js";
 import securityLogRoutes from "./routes/securityLogRoutes.js";
 import ticketRoutes from "./routes/ticketRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import prisma from "../prisma/client.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { superAdminMiddleware } from "./middleware/superAdminMiddleware.js";
@@ -218,6 +219,9 @@ app.use("/api/security-logs", authMiddleware, requireMFA, requirePolicyAcceptanc
 
 // Settings routes (protected by auth + MFA + policies)
 app.use("/api/settings", authMiddleware, requireMFA, requirePolicyAcceptance, settingsRoutes);
+
+// Notification routes (protected by auth + MFA + policies)
+app.use("/api/notifications", authMiddleware, requireMFA, requirePolicyAcceptance, notificationRoutes);
 
 // Error logging routes (public endpoint for frontend error boundary)
 app.use("/api/log-error", errorLogRoutes);

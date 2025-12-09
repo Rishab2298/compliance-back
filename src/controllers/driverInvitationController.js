@@ -1,8 +1,9 @@
 import prisma from '../../prisma/client.js';
 import crypto from 'crypto';
-import { sendDriverInvitationEmail } from '../services/emailService.js';
+import { sendDriverInvitationEmail, sendDocumentUploadNotificationEmail } from '../services/emailService.js';
 import { sendDriverInvitationSMS } from '../services/smsService.js';
 import { generatePresignedUploadUrl } from '../services/s3Service.js';
+import { notifyDocumentUploaded } from '../services/notificationService.js';
 
 /**
  * Generate a secure random token for driver invitation
@@ -405,6 +406,21 @@ export const createDriverDocuments = async (req, res) => {
       });
     }
 
+    // Get driver and company info for notifications
+    const driver = await prisma.driver.findUnique({
+      where: { id: invitation.driverId },
+      include: {
+        company: true,
+      },
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver not found',
+      });
+    }
+
     // Create document records
     const createdDocuments = await Promise.all(
       documents.map(async (doc) => {
@@ -424,6 +440,30 @@ export const createDriverDocuments = async (req, res) => {
         });
       })
     );
+
+    // Create notifications for each document upload
+    try {
+      await Promise.all(
+        createdDocuments.map(async (document) => {
+          try {
+            await notifyDocumentUploaded({
+              companyId: driver.companyId,
+              driverId: driver.id,
+              driverName: driver.name,
+              documentType: document.type,
+              documentId: document.id,
+            });
+            console.log(`✅ Notification created for ${document.type} upload by ${driver.name}`);
+          } catch (notificationError) {
+            console.error('❌ Error creating notification:', notificationError);
+            // Continue even if notification fails
+          }
+        })
+      );
+    } catch (notificationError) {
+      console.error('❌ Error creating notifications:', notificationError);
+      // Don't fail the request if notifications fail
+    }
 
     return res.status(201).json({
       success: true,
@@ -452,6 +492,13 @@ export const completeDriverInvitation = async (req, res) => {
 
     const invitation = await prisma.driverInvitation.findUnique({
       where: { token },
+      include: {
+        driver: {
+          include: {
+            company: true,
+          },
+        },
+      },
     });
 
     if (!invitation) {
@@ -470,6 +517,65 @@ export const completeDriverInvitation = async (req, res) => {
         documentsUploadedAt: new Date(),
       },
     });
+
+    // Send email notifications to all company users
+    try {
+      const driver = invitation.driver;
+      const company = driver.company;
+
+      // Get all users in the company
+      const companyUsers = await prisma.user.findMany({
+        where: {
+          companyId: company.id,
+        },
+        select: {
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      });
+
+      console.log(`📧 Sending document upload notifications to ${companyUsers.length} users`);
+
+      // Get uploaded document types from the invitation
+      const documentTypes = invitation.requestedDocuments || [];
+      const documentTypeDisplay = documentTypes.length > 0
+        ? documentTypes.join(', ')
+        : 'documents';
+
+      // Send email to each user
+      const emailPromises = companyUsers.map(async (user) => {
+        try {
+          const adminName = user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : user.firstName || user.email;
+
+          const reviewUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/client/driver/${driver.id}`;
+
+          await sendDocumentUploadNotificationEmail({
+            email: user.email,
+            adminName,
+            driverName: driver.name,
+            documentType: documentTypeDisplay,
+            companyName: company.name,
+            reviewUrl,
+            uploadedAt: new Date(),
+          });
+
+          console.log(`✅ Email sent to ${user.email}`);
+        } catch (emailError) {
+          console.error(`❌ Failed to send email to ${user.email}:`, emailError.message);
+          // Continue even if one email fails
+        }
+      });
+
+      // Wait for all emails to be sent (or fail)
+      await Promise.allSettled(emailPromises);
+      console.log(`✅ Document upload notification emails sent`);
+    } catch (notificationError) {
+      console.error('❌ Error sending notification emails:', notificationError);
+      // Don't fail the request if notification fails
+    }
 
     return res.status(200).json({
       success: true,

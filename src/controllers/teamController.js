@@ -107,7 +107,7 @@ export const inviteTeamMember = async (req, res) => {
       if (!clerkUserExists) {
         console.log('🔄 Creating new Clerk account for existing database user');
         isNewUser = true; // Fall through to create new Clerk user below
-        // Don't return here - continue to the else block below
+        // Don't return here - fall through to creation logic
       } else {
         // Update existing user in database and Clerk
         oldRole = targetUser.dspRole;
@@ -169,11 +169,14 @@ export const inviteTeamMember = async (req, res) => {
           },
         });
       }
+    } else {
+      // Truly new user - not in database at all
+      isNewUser = true;
     }
 
     if (isNewUser) {
       // New user - create account in both Clerk and Database
-      isNewUser = true;
+      console.log('🆕 Creating brand new user account');
 
       // Get company details for email
       const company = await prisma.company.findUnique({

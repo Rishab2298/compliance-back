@@ -9,6 +9,7 @@ import {
 import { extractDocumentData, parseWithAI, parseWithAIDynamic, parseWithAIUnified } from '../services/textractService.js';
 import { deductCredits, checkLimit } from '../services/billingService.js';
 import auditService from '../services/auditService.js';
+import { notifyDocumentUploaded } from '../services/notificationService.js';
 import { mergeWithDefaults } from '../utils/documentTypeDefaults.js';
 import { calculateDocumentStatus } from '../utils/documentStatusUtils.js';
 
@@ -178,6 +179,20 @@ export const createDocument = async (req, res) => {
         mimeType: contentType,
       },
     });
+
+    // Create notification for document upload
+    try {
+      await notifyDocumentUploaded({
+        companyId: user.companyId,
+        driverId: driver.id,
+        driverName: driver.name,
+        documentType: document.type,
+        documentId: document.id,
+      });
+    } catch (notificationError) {
+      // Log error but don't fail the request
+      console.error('Error creating notification:', notificationError);
+    }
 
     return res.status(201).json({
       success: true,
@@ -837,35 +852,44 @@ export const scanDocumentWithAI = async (req, res) => {
 
     // Track failed AI usage attempt
     try {
-      const company = await prisma.company.findUnique({
-        where: { id: user?.companyId },
-        select: { name: true }
-      });
+      const userId = req.auth?.userId;
 
-      if (user && user.companyId) {
-        await prisma.aIUsage.create({
-          data: {
-            companyId: user.companyId,
-            companyName: company?.name || 'Unknown',
-            userId: user.id,
-            userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
-            userEmail: user.email,
-            feature: 'DOCUMENT_ANALYSIS',
-            action: `Failed AI scan attempt`,
-            tokensUsed: 0,
-            inputTokens: 0,
-            outputTokens: 0,
-            cost: 0,
-            status: 'FAILED',
-            errorMessage: error.message,
-            errorCode: error.code || 'UNKNOWN_ERROR',
-            metadata: {
-              documentId: req.params.documentId
-            },
-            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-            userAgent: req.headers['user-agent']
-          }
+      if (userId) {
+        // Fetch user again in catch block to ensure we have it
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: userId },
         });
+
+        if (user && user.companyId) {
+          const company = await prisma.company.findUnique({
+            where: { id: user.companyId },
+            select: { name: true }
+          });
+
+          await prisma.aIUsage.create({
+            data: {
+              companyId: user.companyId,
+              companyName: company?.name || 'Unknown',
+              userId: user.id,
+              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
+              userEmail: user.email,
+              feature: 'DOCUMENT_ANALYSIS',
+              action: `Failed AI scan attempt`,
+              tokensUsed: 0,
+              inputTokens: 0,
+              outputTokens: 0,
+              cost: 0,
+              status: 'FAILED',
+              errorMessage: error.message,
+              errorCode: error.code || 'UNKNOWN_ERROR',
+              metadata: {
+                documentId: req.params.documentId
+              },
+              ipAddress: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+              userAgent: req.headers['user-agent']
+            }
+          });
+        }
       }
     } catch (trackingError) {
       console.error('⚠️ Failed to track failed AI usage:', trackingError);
