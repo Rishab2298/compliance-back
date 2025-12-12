@@ -143,7 +143,7 @@ export const DEFAULT_DOCUMENT_TYPES = {
         name: "province",
         label: "Province/State",
         type: "text",
-        required: false,
+        required: true,
         aiExtractable: true,
         description: "The province or state that issued the license"
       },
