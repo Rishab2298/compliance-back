@@ -6,6 +6,8 @@ import helmet from "helmet";
 import https from "https";
 import fs from "fs";
 import "dotenv/config";
+import * as Sentry from "@sentry/node";
+import { nodeProfilingIntegration } from "@sentry/profiling-node";
 
 import userRoutes from "./routes/userRoutes.js";
 import onboardingRoutes from "./routes/onboardingRoutes.js";
@@ -41,6 +43,30 @@ import { handleStripeWebhook } from "./controllers/stripeWebhookController.js";
 import { healthCheck } from "./controllers/systemMetricsController.js";
 
 const app = express();
+
+// Initialize Sentry (production only)
+if (process.env.SENTRY_DSN && process.env.NODE_ENV === "production") {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: "production",
+    integrations: [
+      nodeProfilingIntegration(),
+      Sentry.expressIntegration({ app }), // Express integration (includes request/tracing handlers)
+    ],
+    // Performance Monitoring
+    tracesSampleRate: 0.1, // 10% of transactions
+    // Profiling
+    profilesSampleRate: 0.1, // 10% of transactions
+  });
+
+  console.log("✅ Sentry initialized (production mode)");
+} else {
+  if (process.env.NODE_ENV === "production") {
+    console.log("⚠️  Sentry DSN not configured - error tracking disabled in production");
+  } else {
+    console.log("ℹ️  Sentry disabled in development mode");
+  }
+}
 
 // Trust proxy - required for rate limiting and req.ip to work correctly
 // Set to 1 to trust only the first proxy (Apache/nginx on same server)
@@ -96,6 +122,8 @@ app.use(
           "https://*.twilio.com",
           "http://ip-api.com", // GeoIP lookup
           "https://api.cloudinary.com",
+          "https://*.sentry.io", // Sentry error tracking
+          "https://sentry.io",
           process.env.FRONTEND_URL || "http://localhost:5173",
         ],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -168,6 +196,9 @@ app.head("/", (req, res) => {
 // Public health check endpoint (supports both GET and HEAD for uptime monitoring)
 app.get("/api/health", healthCheck);
 app.head("/api/health", healthCheck);
+
+// No test endpoints - Sentry is production-only
+
 
 // Clerk sends JSON
 
@@ -480,6 +511,11 @@ app.post("/api/clerk-webhook", async (req, res) => {
 
 // Stripe Webhook to handle payment events
 app.post("/api/stripe-webhook", handleStripeWebhook);
+
+// Sentry error handler (production only, must be before other error handlers)
+if (process.env.SENTRY_DSN && process.env.NODE_ENV === "production") {
+  app.use(Sentry.expressErrorHandler());
+}
 
 // Error handling middleware (must be last)
 app.use(errorHandlerMiddleware);
