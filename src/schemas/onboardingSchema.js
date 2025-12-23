@@ -1,25 +1,17 @@
 import { z } from 'zod';
 
-// Validation helpers
-const einRegex = /^\d{2}-\d{7}$/; // Format: XX-XXXXXXX
-const canadaBusinessNumberRegex = /^\d{9}$/; // Format: 9 digits
-
 export const onboardingSchema = z.object({
   // Step 1 - Company Information
   legalCompanyName: z.string().min(1, 'Legal company name is required'),
   operatingName: z.string().min(1, 'Operating name (DBA) is required'),
-  country: z.enum(['United States', 'Canada'], {
-    required_error: 'Please select a country',
-  }),
-  entityType: z.enum(['Corp', 'Inc', 'LLC', 'Ltd', 'Partnership'], {
-    required_error: 'Please select an entity type',
-  }),
+  country: z.string().min(1, 'Please select a country'),
+  entityType: z.string().min(1, 'Please select an entity type'),
   businessRegistrationNumber: z.string().min(1, 'Business registration number is required'),
   registeredAddress: z.object({
     street: z.string().min(1, 'Street address is required'),
     city: z.string().min(1, 'City is required'),
-    stateProvince: z.string().min(1, 'State/Province is required'),
-    zipPostalCode: z.string().min(1, 'ZIP/Postal code is required'),
+    stateProvince: z.string().min(1, 'State/Province/Region is required'),
+    zipPostalCode: z.string().min(1, 'Postal/ZIP code is required'),
   }),
   operatingAddresses: z.array(z.object({
     street: z.string(),
@@ -66,9 +58,10 @@ export const onboardingSchema = z.object({
   // Step 5 - Legal Consents
   agreeToTerms: z.boolean(),
   agreeToPrivacy: z.boolean(),
-  agreeToDataProcessing: z.boolean().optional(),
-  agreeToSmsConsent: z.boolean().optional(),
-  agreeToSupportAccess: z.boolean().optional().default(false),
+  agreeToDataProcessing: z.boolean(),
+  agreeToAiFairUse: z.boolean(),
+  agreeToGdprDataProcessing: z.boolean(),
+  agreeToComplaints: z.boolean(),
   consentTimestamp: z.string().optional(),
   consentIpAddress: z.string().optional(),
   consentVersion: z.string().optional().default('1.0'),

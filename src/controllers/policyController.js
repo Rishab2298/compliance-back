@@ -412,6 +412,9 @@ export const getPolicyStatus = async (req, res) => {
       "SMS_CONSENT",
       "COOKIE_PREFERENCES",
       "SUPPORT_ACCESS",
+      "AI_FAIR_USE_POLICY",
+      "GDPR_DATA_PROCESSING_ADDENDUM",
+      "COMPLAINTS_POLICY",
     ];
 
     const statusData = await Promise.all(

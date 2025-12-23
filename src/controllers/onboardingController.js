@@ -25,9 +25,9 @@ const logPolicyAcceptances = async (userId, companyId, userEmail, req) => {
       'TERMS_OF_SERVICE',
       'PRIVACY_POLICY',
       'DATA_PROCESSING_AGREEMENT',
-      'SMS_CONSENT',
-      'COOKIE_PREFERENCES',
-      'SUPPORT_ACCESS',
+      'AI_FAIR_USE_POLICY',
+      'GDPR_DATA_PROCESSING_ADDENDUM',
+      'COMPLAINTS_POLICY',
     ];
 
     const policies = await prisma.policy.findMany({
@@ -116,9 +116,10 @@ export const saveOnboarding = async (req, res) => {
       console.log("=== Legal Consents Captured ===");
       console.log("Terms of Service:", validatedData.agreeToTerms);
       console.log("Privacy Policy:", validatedData.agreeToPrivacy);
-      console.log("Data Processing (DSP):", validatedData.agreeToDataProcessing);
-      console.log("SMS Consent:", validatedData.agreeToSmsConsent);
-      console.log("Support Access:", validatedData.agreeToSupportAccess);
+      console.log("Data Processing Addendum:", validatedData.agreeToDataProcessing);
+      console.log("AI Fair Use Policy:", validatedData.agreeToAiFairUse);
+      console.log("GDPR Data Processing Addendum:", validatedData.agreeToGdprDataProcessing);
+      console.log("Complaints Policy:", validatedData.agreeToComplaints);
       console.log("Consent Timestamp:", validatedData.consentTimestamp);
       console.log("Consent IP:", validatedData.consentIpAddress);
       console.log("Consent Version:", validatedData.consentVersion);

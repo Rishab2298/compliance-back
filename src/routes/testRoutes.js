@@ -420,7 +420,7 @@ router.get('/team-invitation-preview', (_req, res) => {
             <!-- Important info box -->
             <div class="info-box">
               <p class="info-text">
-                <strong>⏰ Important:</strong> This password setup link will expire in 7 days. Make sure to complete your setup soon!
+                <strong> Important:</strong> This password setup link will expire in 7 days. Make sure to complete your setup soon!
               </p>
             </div>
           </div>

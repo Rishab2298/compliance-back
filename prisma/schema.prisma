@@ -650,6 +650,7 @@ enum AuditAction {
   TEAM_LIST_VIEWED
 
   // Reminder/Compliance Configuration
+  REMINDER_CREATED
   REMINDER_CONFIGURED
   REMINDER_UPDATED
   REMINDER_DELETED
@@ -657,6 +658,7 @@ enum AuditAction {
 
   // Compliance Operations
   DATA_EXPORTED
+  CSV_IMPORTED
   AUDIT_LOG_VIEWED
   AUDIT_LOG_EXPORTED
   AUDIT_LOG_ACCESSED
@@ -666,6 +668,12 @@ enum AuditAction {
   PERMISSION_DENIED
   SUSPICIOUS_ACTIVITY
   RATE_LIMIT_EXCEEDED
+
+  // Ticketing Operations
+  TICKET_CREATED
+  TICKET_UPDATED
+  TICKET_RESOLVED
+  TICKET_CLOSED
 
   // Client-side Events
   CLIENT_ERROR

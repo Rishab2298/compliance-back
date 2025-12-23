@@ -11,27 +11,10 @@ import prisma from "../../prisma/client.js";
  */
 
 //////////////////////////////////////////////
-// getAllUsers
+// getAllUsers - REMOVED (unused, superseded by /api/super-admin/users)
 //////////////////////////////////////////////
-/**
- * Method: GET
- * URL: /api/users
- * Params: none
- * Body: none
- * Response: 
- *   200: Array of user objects
- *   500: { error: "error message" }
- */
-export const getAllUsers = async (req, res) => {
-
-   try {
-    const users = await prisma.user.findMany();
-    res.json(users);
-    console.log(users)
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+// This endpoint was vulnerable as it returned all users without company filtering
+// Use /api/super-admin/users with proper superAdminMiddleware instead
 
 //////////////////////////////////////////////
 // getUserById

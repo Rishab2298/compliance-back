@@ -293,7 +293,7 @@ export const sendDriverInvitationEmail = async ({
                 <!-- Important info box -->
                 <div class="info-box">
                   <p class="info-text">
-                    <strong>⏰ Important:</strong> This upload link will expire in 7 days. Please complete your document upload soon. If you have any questions, contact ${companyName} directly.
+                    <strong> Important:</strong> This upload link will expire in 7 days. Please complete your document upload soon. If you have any questions, contact ${companyName} directly.
                   </p>
                 </div>
               </div>
@@ -840,7 +840,7 @@ export const sendWelcomeEmail = async ({
             <div class="container">
               <!-- Header with gradient background -->
               <div class="header">
-                <h1 class="header-title">🎉 Welcome to Complyo</h1>
+                <h1 class="header-title"> Welcome to Complyo</h1>
               </div>
 
               <!-- Main content -->
@@ -1180,7 +1180,7 @@ export const sendTeamInvitationEmail = async ({
                 <!-- Important info box -->
                 <div class="info-box">
                   <p class="info-text">
-                    <strong>⏰ Important:</strong> This password setup link will expire in 7 days. Make sure to complete your setup soon!
+                    <strong> Important:</strong> This password setup link will expire in 7 days. Make sure to complete your setup soon!
                   </p>
                 </div>
               </div>
