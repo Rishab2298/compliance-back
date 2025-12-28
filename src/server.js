@@ -30,6 +30,8 @@ import errorLogRoutes from "./routes/errorLogRoutes.js";
 import securityLogRoutes from "./routes/securityLogRoutes.js";
 import ticketRoutes from "./routes/ticketRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import complaintRoutes from "./routes/complaintRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
 import prisma from "../prisma/client.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { superAdminMiddleware } from "./middleware/superAdminMiddleware.js";
@@ -259,6 +261,12 @@ app.use("/api/log-error", errorLogRoutes);
 
 // Ticket routes (protected by auth + MFA + policies)
 app.use("/api/tickets", authMiddleware, requireMFA, requirePolicyAcceptance, ticketRoutes);
+
+// Complaint routes (public endpoint for complaint registration form)
+app.use("/api/complaints", complaintRoutes);
+
+// Contact routes (public endpoint for contact form)
+app.use("/api/contact", contactRoutes);
 
 // Webhook to handle Clerk events
 app.post("/api/clerk-webhook", async (req, res) => {

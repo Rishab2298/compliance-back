@@ -4,6 +4,7 @@ import { getIPAddress, getRegionFromIP } from "../utils/geoip.js";
 import crypto from "crypto";
 import { clerkClient } from "@clerk/express";
 import { sendWelcomeEmail } from "../services/emailService.js";
+import { generatePresignedUploadUrl, generatePresignedDownloadUrl, generatePolicyPdfKey, getPublicUrl } from "../services/s3Service.js";
 
 /**
  * Policy Controller
@@ -18,7 +19,7 @@ import { sendWelcomeEmail } from "../services/emailService.js";
 export const createPolicy = async (req, res) => {
   try {
     const userId = req.auth.userId;
-    const { type, content, isPublished, isMajorVersion } = req.body;
+    const { type, content, isPublished, isMajorVersion, pdfUrl } = req.body;
 
     // Validation
     if (!type || !content) {
@@ -49,6 +50,7 @@ export const createPolicy = async (req, res) => {
       createdById: user.id,
       isPublished: isPublished || false,
       isMajorVersion: isMajorVersion || false,
+      pdfUrl: pdfUrl || null,
     });
 
     res.status(201).json({
@@ -73,7 +75,7 @@ export const updatePolicy = async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { type } = req.params;
-    const { content, isPublished, isMajorVersion } = req.body;
+    const { content, isPublished, isMajorVersion, pdfUrl } = req.body;
 
     // Validation
     if (!content) {
@@ -104,6 +106,7 @@ export const updatePolicy = async (req, res) => {
       userId: user.id,
       isPublished: isPublished || false,
       isMajorVersion: isMajorVersion || false,
+      pdfUrl: pdfUrl || null,
     });
 
     res.json({
@@ -217,6 +220,24 @@ export const getLatestPublishedPolicy = async (req, res) => {
       });
     }
 
+    // Generate presigned URL if PDF exists (valid for 1 hour for onboarding)
+    let pdfUrl = null;
+    if (policy.pdfUrl) {
+      try {
+        // Extract S3 key from URL if it's a full URL (for backward compatibility)
+        let s3Key = policy.pdfUrl;
+        if (s3Key.startsWith('http')) {
+          // Extract key from URL: https://bucket.s3.region.amazonaws.com/key -> key
+          const urlParts = s3Key.split('.amazonaws.com/');
+          s3Key = urlParts.length > 1 ? urlParts[1] : s3Key;
+        }
+        pdfUrl = await generatePresignedDownloadUrl(s3Key, 3600); // 1 hour expiry for onboarding
+      } catch (error) {
+        console.error("Error generating presigned URL for PDF:", error);
+        // Continue without PDF URL if generation fails
+      }
+    }
+
     // Return only necessary fields for public consumption
     res.json({
       type: policy.type,
@@ -224,6 +245,7 @@ export const getLatestPublishedPolicy = async (req, res) => {
       content: policy.content,
       contentHash: policy.contentHash,
       publishedAt: policy.publishedAt,
+      pdfUrl,
     });
   } catch (error) {
     console.error("Get latest policy error:", error);
@@ -241,15 +263,36 @@ export const getAllLatestPublishedPolicies = async (req, res) => {
   try {
     const policies = await policyService.getAllLatestPublishedPolicies();
 
-    // Return only necessary fields for public consumption
-    const publicPolicies = policies.map((policy) => ({
-      id: policy.id,
-      type: policy.type,
-      version: policy.version,
-      content: policy.content,
-      contentHash: policy.contentHash,
-      publishedAt: policy.publishedAt,
-    }));
+    // Generate presigned URLs for all policies with PDFs
+    const publicPolicies = await Promise.all(
+      policies.map(async (policy) => {
+        let pdfUrl = null;
+        if (policy.pdfUrl) {
+          try {
+            // Extract S3 key from URL if it's a full URL (for backward compatibility)
+            let s3Key = policy.pdfUrl;
+            if (s3Key.startsWith('http')) {
+              const urlParts = s3Key.split('.amazonaws.com/');
+              s3Key = urlParts.length > 1 ? urlParts[1] : s3Key;
+            }
+            pdfUrl = await generatePresignedDownloadUrl(s3Key, 3600); // 1 hour expiry
+          } catch (error) {
+            console.error(`Error generating presigned URL for policy ${policy.id}:`, error);
+            // Continue without PDF URL if generation fails
+          }
+        }
+
+        return {
+          id: policy.id,
+          type: policy.type,
+          version: policy.version,
+          content: policy.content,
+          contentHash: policy.contentHash,
+          publishedAt: policy.publishedAt,
+          pdfUrl,
+        };
+      })
+    );
 
     res.json({
       success: true,
@@ -290,10 +333,31 @@ export const getPolicyHistory = async (req, res) => {
 
     const policies = await policyService.getPolicyHistory(type.toUpperCase());
 
+    // Generate presigned URLs for all policies with PDFs
+    const policiesWithPresignedUrls = await Promise.all(
+      policies.map(async (policy) => {
+        if (policy.pdfUrl) {
+          try {
+            // Extract S3 key from URL if it's a full URL (for backward compatibility)
+            let s3Key = policy.pdfUrl;
+            if (s3Key.startsWith('http')) {
+              const urlParts = s3Key.split('.amazonaws.com/');
+              s3Key = urlParts.length > 1 ? urlParts[1] : s3Key;
+            }
+            policy.pdfUrl = await generatePresignedDownloadUrl(s3Key, 3600); // 1 hour expiry
+          } catch (error) {
+            console.error(`Error generating presigned URL for policy ${policy.id}:`, error);
+            // Continue with S3 key if presigned URL generation fails
+          }
+        }
+        return policy;
+      })
+    );
+
     res.json({
       success: true,
-      policies,
-      total: policies.length,
+      policies: policiesWithPresignedUrls,
+      total: policiesWithPresignedUrls.length,
     });
   } catch (error) {
     console.error("Get policy history error:", error);
@@ -329,6 +393,22 @@ export const getPolicyById = async (req, res) => {
     }
 
     const policy = await policyService.getPolicyById(id);
+
+    // Generate presigned URL if PDF exists
+    if (policy.pdfUrl) {
+      try {
+        // Extract S3 key from URL if it's a full URL (for backward compatibility)
+        let s3Key = policy.pdfUrl;
+        if (s3Key.startsWith('http')) {
+          const urlParts = s3Key.split('.amazonaws.com/');
+          s3Key = urlParts.length > 1 ? urlParts[1] : s3Key;
+        }
+        policy.pdfUrl = await generatePresignedDownloadUrl(s3Key, 3600); // 1 hour expiry
+      } catch (error) {
+        console.error("Error generating presigned URL for PDF:", error);
+        // Continue with S3 key if presigned URL generation fails
+      }
+    }
 
     res.json({
       success: true,
@@ -698,6 +778,69 @@ export const getAcceptanceStatus = async (req, res) => {
   }
 };
 
+/**
+ * Generate presigned upload URL for policy PDF
+ * POST /api/policies/upload-url
+ * Body: { policyType, version, filename }
+ */
+export const generatePdfUploadUrl = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { policyType, version, filename } = req.body;
+
+    // Validation
+    if (!policyType || !version || !filename) {
+      return res.status(400).json({
+        error: "Policy type, version, and filename are required",
+      });
+    }
+
+    // Validate filename is a PDF
+    if (!filename.toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({
+        error: "Only PDF files are allowed",
+      });
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Only SUPER_ADMIN can upload policy PDFs
+    if (user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        error: "Forbidden: Only super admins can upload policy PDFs",
+      });
+    }
+
+    // Generate S3 key
+    const s3Key = generatePolicyPdfKey(policyType, version, filename);
+
+    // Generate presigned upload URL (valid for 5 minutes)
+    const uploadUrl = await generatePresignedUploadUrl(s3Key, 'application/pdf', 300);
+
+    // Return the S3 key to be stored in the database (not the public URL)
+    // This allows us to generate presigned URLs on-demand for secure access
+    res.json({
+      success: true,
+      uploadUrl,
+      pdfUrl: s3Key, // Store S3 key instead of public URL
+      s3Key,
+      message: "Upload URL generated successfully",
+    });
+  } catch (error) {
+    console.error("Generate upload URL error:", error);
+    res.status(500).json({
+      error: error.message || "Failed to generate upload URL",
+    });
+  }
+};
+
 export default {
   createPolicy,
   updatePolicy,
@@ -711,4 +854,5 @@ export default {
   getPolicyStatus,
   acceptPolicies,
   getAcceptanceStatus,
+  generatePdfUploadUrl,
 };

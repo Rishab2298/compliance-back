@@ -1224,6 +1224,551 @@ export const sendTeamInvitationEmail = async ({
 };
 
 /**
+ * Send complaint notification email
+ * @param {Object} params - Email parameters
+ * @param {string} params.name - Complainant name
+ * @param {string} params.email - Complainant email
+ * @param {string} params.subject - Complaint subject
+ * @param {string} params.category - Complaint category
+ * @param {string} params.priority - Complaint priority
+ * @param {string} params.description - Complaint description
+ */
+export const sendComplaintEmail = async ({
+  name,
+  email,
+  subject,
+  category,
+  priority,
+  description,
+}) => {
+  try {
+    console.log('📧 Sending complaint notification email...');
+
+    const transporter = createTransporter();
+
+    // Priority badge color
+    const priorityColors = {
+      low: { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
+      medium: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
+      high: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' },
+      urgent: { bg: '#fecaca', border: '#dc2626', text: '#7f1d1d' },
+    };
+
+    const priorityColor = priorityColors[priority.toLowerCase()] || priorityColors.medium;
+
+    const mailOptions = {
+      from: `"Complyo Complaints" <${process.env.SMTP_USER}>`,
+      to: ['logilink.it@gmail.com', 
+        'complaints@complyo.co'
+      ],
+      replyTo: email,
+      subject: `New Complaint: ${subject}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            }
+            .header {
+              background: linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #f87171 100%);
+              padding: 40px 30px;
+              text-align: center;
+            }
+            .header-icon {
+              font-size: 48px;
+              margin-bottom: 12px;
+            }
+            .header-title {
+              color: #ffffff;
+              font-size: 26px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .alert-box {
+              background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+              border-left: 4px solid #dc2626;
+              padding: 20px;
+              margin-bottom: 24px;
+              border-radius: 8px;
+            }
+            .alert-text {
+              color: #7f1d1d;
+              font-size: 15px;
+              font-weight: 600;
+            }
+            .detail-section {
+              margin: 24px 0;
+            }
+            .detail-row {
+              display: flex;
+              padding: 12px 0;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .detail-row:last-child {
+              border-bottom: none;
+            }
+            .detail-label {
+              font-weight: 600;
+              color: #4b5563;
+              min-width: 120px;
+              font-size: 14px;
+            }
+            .detail-value {
+              color: #1f2937;
+              font-size: 14px;
+              flex: 1;
+            }
+            .priority-badge {
+              display: inline-block;
+              padding: 6px 14px;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 13px;
+              text-transform: uppercase;
+              background-color: ${priorityColor.bg};
+              border: 2px solid ${priorityColor.border};
+              color: ${priorityColor.text};
+            }
+            .description-box {
+              background-color: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 24px 0;
+            }
+            .description-label {
+              font-weight: 600;
+              color: #4b5563;
+              margin-bottom: 12px;
+              font-size: 14px;
+            }
+            .description-text {
+              color: #1f2937;
+              line-height: 1.7;
+              white-space: pre-wrap;
+              font-size: 14px;
+            }
+            .footer {
+              background-color: #f9fafb;
+              padding: 30px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header -->
+              <div class="header">
+                
+                <h1 class="header-title">New Complaint Received</h1>
+              </div>
+
+              <!-- Main content -->
+              <div class="content">
+                <div class="alert-box">
+                  <p class="alert-text">
+                    🔔 A new complaint has been submitted through the Complyo complaint registration form.
+                  </p>
+                </div>
+
+                <!-- Complaint Details -->
+                <div class="detail-section">
+                  <div class="detail-row">
+                    <span class="detail-label">Name:</span>
+                    <span class="detail-value"><strong>${name}</strong></span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value"><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Subject:</span>
+                    <span class="detail-value"><strong>${subject}</strong></span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Category:</span>
+                    <span class="detail-value">${category}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Priority:</span>
+                    <span class="detail-value">
+                      <span class="priority-badge">${priority}</span>
+                    </span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Submitted:</span>
+                    <span class="detail-value">${new Date().toLocaleString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}</span>
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Description -->
+                <div class="description-box">
+                  <div class="description-label">Complaint Description:</div>
+                  <div class="description-text">${description}</div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="footer">
+                <p class="footer-text">
+                  <strong>Action Required:</strong> Please review this complaint and respond to the customer within 24-48 hours.
+                </p>
+                <p class="footer-text">
+                  Reply directly to this email to contact: <a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a>
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. Automated complaint notification.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Complaint email sent successfully to logilink.it@gmail.com and complaints@complyo.co');
+    console.log('   Message ID:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending complaint email:', error);
+    throw new Error(`Failed to send complaint email: ${error.message}`);
+  }
+};
+
+/**
+ * Send contact form notification email
+ * @param {Object} params - Email parameters
+ * @param {string} params.name - Contact name
+ * @param {string} params.email - Contact email
+ * @param {string} params.phone - Contact phone (optional)
+ * @param {string} params.company - Company name (optional)
+ * @param {string} params.inquiryType - Type of inquiry
+ * @param {string} params.subject - Contact subject
+ * @param {string} params.message - Contact message
+ */
+export const sendContactEmail = async ({
+  name,
+  email,
+  phone,
+  company,
+  inquiryType,
+  subject,
+  message,
+}) => {
+  try {
+    console.log('📧 Sending contact form notification email...');
+
+    const transporter = createTransporter();
+
+    // Inquiry type badge color
+    const inquiryColors = {
+      sales: { bg: '#dbeafe', border: '#2563eb', text: '#1e40af' },
+      enterprise: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' },
+      support: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
+      partnership: { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
+      other: { bg: '#f3f4f6', border: '#6b7280', text: '#374151' },
+    };
+
+    const inquiryColor = inquiryColors[inquiryType.toLowerCase()] || inquiryColors.other;
+
+    // Format inquiry type for display
+    const inquiryTypeDisplay = inquiryType
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+
+    const mailOptions = {
+      from: `"Complyo Contact Form" <${process.env.SMTP_USER}>`,
+      to: 'logilinkstaffing@gmail.com',
+      replyTo: email,
+      subject: `New Contact Form Submission: ${inquiryTypeDisplay} - ${subject}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1f2937;
+              background-color: #f3f4f6;
+            }
+            .email-wrapper {
+              width: 100%;
+              background-color: #f3f4f6;
+              padding: 40px 0;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            }
+            .header {
+              background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
+              padding: 40px 30px;
+              text-align: center;
+            }
+            .header-icon {
+              font-size: 48px;
+              margin-bottom: 12px;
+            }
+            .header-title {
+              color: #ffffff;
+              font-size: 26px;
+              font-weight: 700;
+              margin: 0;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .content {
+              padding: 40px 30px;
+            }
+            .alert-box {
+              background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+              border-left: 4px solid #2563eb;
+              padding: 20px;
+              margin-bottom: 24px;
+              border-radius: 8px;
+            }
+            .alert-text {
+              color: #1e40af;
+              font-size: 15px;
+              font-weight: 600;
+            }
+            .detail-section {
+              margin: 24px 0;
+            }
+            .detail-row {
+              display: flex;
+              padding: 12px 0;
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .detail-row:last-child {
+              border-bottom: none;
+            }
+            .detail-label {
+              font-weight: 600;
+              color: #4b5563;
+              min-width: 140px;
+              font-size: 14px;
+            }
+            .detail-value {
+              color: #1f2937;
+              font-size: 14px;
+              flex: 1;
+            }
+            .inquiry-badge {
+              display: inline-block;
+              padding: 6px 14px;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 13px;
+              text-transform: uppercase;
+              background-color: ${inquiryColor.bg};
+              border: 2px solid ${inquiryColor.border};
+              color: ${inquiryColor.text};
+            }
+            .message-box {
+              background-color: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 24px 0;
+            }
+            .message-label {
+              font-weight: 600;
+              color: #4b5563;
+              margin-bottom: 12px;
+              font-size: 14px;
+            }
+            .message-text {
+              color: #1f2937;
+              line-height: 1.7;
+              white-space: pre-wrap;
+              font-size: 14px;
+            }
+            .footer {
+              background-color: #f9fafb;
+              padding: 30px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+            }
+            .footer-text {
+              font-size: 13px;
+              color: #6b7280;
+              margin-bottom: 8px;
+            }
+            .divider {
+              height: 1px;
+              background-color: #e5e7eb;
+              margin: 24px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="container">
+              <!-- Header -->
+              <div class="header">
+                <div class="header-icon">📬</div>
+                <h1 class="header-title">New Contact Form Submission</h1>
+              </div>
+
+              <!-- Main content -->
+              <div class="content">
+                <div class="alert-box">
+                  <p class="alert-text">
+                    🔔 A new inquiry has been submitted through the Complyo contact form.
+                  </p>
+                </div>
+
+                <!-- Contact Details -->
+                <div class="detail-section">
+                  <div class="detail-row">
+                    <span class="detail-label">Name:</span>
+                    <span class="detail-value"><strong>${name}</strong></span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value"><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></span>
+                  </div>
+                  ${phone ? `
+                  <div class="detail-row">
+                    <span class="detail-label">Phone:</span>
+                    <span class="detail-value"><a href="tel:${phone}" style="color: #2563eb; text-decoration: none;">${phone}</a></span>
+                  </div>
+                  ` : ''}
+                  ${company ? `
+                  <div class="detail-row">
+                    <span class="detail-label">Company:</span>
+                    <span class="detail-value">${company}</span>
+                  </div>
+                  ` : ''}
+                  <div class="detail-row">
+                    <span class="detail-label">Inquiry Type:</span>
+                    <span class="detail-value">
+                      <span class="inquiry-badge">${inquiryTypeDisplay}</span>
+                    </span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Subject:</span>
+                    <span class="detail-value"><strong>${subject}</strong></span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Submitted:</span>
+                    <span class="detail-value">${new Date().toLocaleString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}</span>
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Message -->
+                <div class="message-box">
+                  <div class="message-label">Message:</div>
+                  <div class="message-text">${message}</div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="footer">
+                <p class="footer-text">
+                  <strong>Action Required:</strong> Please review this inquiry and respond to the customer promptly.
+                </p>
+                <p class="footer-text">
+                  Reply directly to this email to contact: <a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a>
+                </p>
+                <div class="divider"></div>
+                <p class="footer-text" style="color: #9ca3af;">
+                  © ${new Date().getFullYear()} Complyo. Automated contact form notification.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Contact email sent successfully to logilinkstaffing@gmail.com');
+    console.log('   Message ID:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending contact email:', error);
+    throw new Error(`Failed to send contact email: ${error.message}`);
+  }
+};
+
+/**
  * Send test email to verify configuration
  */
 export const sendTestEmail = async (toEmail) => {

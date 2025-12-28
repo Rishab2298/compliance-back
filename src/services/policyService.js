@@ -49,6 +49,7 @@ async function generateNextVersion(policyType, isMajor = false) {
  * @param {string} data.createdById - User ID creating the policy
  * @param {boolean} data.isPublished - Whether to publish immediately
  * @param {boolean} data.isMajorVersion - Whether this is a major version change
+ * @param {string} data.pdfUrl - Optional URL to uploaded PDF file
  * @returns {Promise<Object>} - The created policy
  */
 export async function createPolicy({
@@ -57,6 +58,7 @@ export async function createPolicy({
   createdById,
   isPublished = false,
   isMajorVersion = false,
+  pdfUrl = null,
 }) {
   const contentHash = generateContentHash(content);
   const version = await generateNextVersion(type, isMajorVersion);
@@ -75,6 +77,7 @@ export async function createPolicy({
       version,
       content,
       contentHash,
+      pdfUrl,
       isPublished,
       publishedAt: isPublished ? new Date() : null,
       createdById,
@@ -117,6 +120,7 @@ export async function createPolicy({
  * @param {string} data.userId - User ID making the update
  * @param {boolean} data.isPublished - Whether to publish immediately
  * @param {boolean} data.isMajorVersion - Whether this is a major version change
+ * @param {string} data.pdfUrl - Optional URL to uploaded PDF file
  * @returns {Promise<Object>} - The new policy version
  */
 export async function updatePolicy({
@@ -125,6 +129,7 @@ export async function updatePolicy({
   userId,
   isPublished = false,
   isMajorVersion = false,
+  pdfUrl = null,
 }) {
   // Get current published version
   const currentPolicy = await prisma.policy.findFirst({
@@ -138,6 +143,7 @@ export async function updatePolicy({
     createdById: userId,
     isPublished,
     isMajorVersion,
+    pdfUrl,
   });
 
   // Audit log the update

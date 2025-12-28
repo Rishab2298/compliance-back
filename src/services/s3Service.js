@@ -105,3 +105,16 @@ export const generateDocumentKey = (companyId, driverId, filename) => {
 export const getPublicUrl = (key) => {
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 };
+
+/**
+ * Generate S3 key for a policy PDF
+ * @param {string} policyType - Policy type (e.g., 'TERMS_OF_SERVICE')
+ * @param {string} version - Policy version
+ * @param {string} filename - Original filename
+ * @returns {string} - S3 key
+ */
+export const generatePolicyPdfKey = (policyType, version, filename) => {
+  const timestamp = Date.now();
+  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+  return `policies/${policyType}/${version}/${timestamp}_${sanitizedFilename}`;
+};

@@ -207,3 +207,82 @@ export const generalApiRateLimiter = rateLimit({
     return req.path === '/health' || req.path === '/api/health';
   },
 });
+
+/**
+ * Complaint submission rate limiter
+ * Prevents spam and abuse of the public complaint form
+ *
+ * Limits:
+ * - 1 complaint submission per 24 hours per IP address
+ * - Prevents spam while allowing legitimate complaints
+ *
+ * SECURITY NOTE:
+ * - Uses IP-based rate limiting to prevent abuse
+ * - 24-hour window ensures one complaint per day per IP
+ * - Logs all rate limit violations for monitoring
+ */
+export const complaintRateLimiter = rateLimit({
+  // TEMPORARY: Set to 1 minute for testing - change back to 24 hours in production
+  windowMs: process.env.NODE_ENV === 'production' ? 24 * 60 * 60 * 1000 : 60 * 1000, // 1 minute in dev, 24 hours in prod
+  max: 1, // Max 1 complaint per window
+  message: {
+    success: false,
+    error: 'Complaint submission limit exceeded',
+    message: 'You have already submitted a complaint in the last 24 hours. Please wait before submitting another.',
+    retryAfter: '24 hours',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Use ipKeyGenerator helper for proper IPv4/IPv6 handling
+  keyGenerator: (req) => {
+    const key = ipKeyGenerator(req);
+    console.log(`[RATE LIMIT] 🔑 Complaint rate limiter - Key generated: "${key}"`, {
+      reqIp: req.ip,
+      reqIps: req.ips,
+      xForwardedFor: req.headers['x-forwarded-for'],
+      xRealIp: req.headers['x-real-ip'],
+    });
+    return key;
+  },
+  skip: (req) => {
+    console.log(`[RATE LIMIT] ⏩ Checking if should skip rate limit for IP: ${req.ip}`);
+    return false; // Never skip
+  },
+  handler: async (req, res) => {
+    console.warn(`[RATE LIMIT] Complaint rate limit exceeded for IP: ${req.ip}`);
+
+    // Log rate limit violation as security event
+    try {
+      await auditService.logSecurityEvent({
+        userId: null, // Public endpoint, no user
+        userEmail: req.body?.email || 'unknown',
+        companyId: null,
+        eventType: 'RATE_LIMIT_EXCEEDED',
+        severity: 'LOW',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        location: null,
+        description: 'Complaint submission rate limit exceeded (1 per 24 hours)',
+        metadata: {
+          endpoint: req.originalUrl,
+          method: req.method,
+          limitType: 'COMPLAINT_SUBMISSION',
+          maxRequests: 1,
+          windowHours: 24,
+          submitterEmail: req.body?.email || 'unknown',
+        },
+        blocked: true,
+        actionTaken: 'Request rejected with 429',
+      });
+    } catch (error) {
+      console.error('Error logging complaint rate limit event:', error);
+    }
+
+    res.status(429).json({
+      success: false,
+      error: 'Complaint submission limit exceeded',
+      message: 'You have already submitted a complaint in the last 24 hours. Please wait before submitting another complaint.',
+      retryAfter: '24 hours',
+    });
+  },
+});

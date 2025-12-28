@@ -12,6 +12,7 @@ import {
   getPolicyStatus,
   acceptPolicies,
   getAcceptanceStatus,
+  generatePdfUploadUrl,
 } from "../controllers/policyController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -61,6 +62,9 @@ router.get("/acceptance-status", authMiddleware, getAcceptanceStatus);
 
 // Get policy status overview
 router.get("/status", authMiddleware, getPolicyStatus);
+
+// Generate presigned upload URL for policy PDF
+router.post("/upload-url", authMiddleware, generatePdfUploadUrl);
 
 // Create new policy
 router.post("/", authMiddleware, createPolicy);

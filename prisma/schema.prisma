@@ -737,8 +737,9 @@ model Policy {
   version String // Auto-generated: "1.0.0", "1.0.1", etc.
 
   // Content
-  content     String @db.Text // Rich text content
+  content     String  @db.Text // Rich text content
   contentHash String // SHA-256 hash of content
+  pdfUrl      String? // URL to uploaded PDF file
 
   // Publishing
   isPublished Boolean   @default(false)

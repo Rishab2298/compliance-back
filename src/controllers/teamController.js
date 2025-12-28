@@ -319,7 +319,7 @@ export const inviteTeamMember = async (req, res) => {
           }
         }
 
-        throw new Error(`Failed to create user: ${createError.message}`);
+        throw new Error(`Failed to create user: User Already Exists or ${createError.message}`);
       }
 
       // Log invitation
