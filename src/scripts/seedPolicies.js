@@ -87,8 +87,8 @@ We may update these terms from time to time. Continued use of the service after 
 ## 11. Contact Information
 
 For questions about these Terms of Service, please contact us at:
-- Email: support@complyo.com
-- Website: https://complyo.com/contact
+- Email: support@complyo.co
+- Website: https://complyo.co/contact
 
 ---
 
@@ -174,7 +174,7 @@ You have the right to:
 - Opt-out of marketing communications
 - Revoke consent where applicable
 
-To exercise these rights, contact us at privacy@complyo.com
+To exercise these rights, contact us at privacy@complyo.co
 
 ## 7. Children's Privacy
 
@@ -201,9 +201,9 @@ We may update this policy periodically. We will notify you of material changes v
 ## 11. Contact Us
 
 For privacy-related questions or concerns:
-- Email: privacy@complyo.com
+- Email: privacy@complyo.co
 - Address: Complyo Privacy Team
-- Website: https://complyo.com/privacy
+- Website: https://complyo.co/privacy
 
 ---
 
@@ -361,7 +361,7 @@ This DPA is governed by the laws applicable to the main services agreement.
 ## 14. Contact Information
 
 For DPA-related inquiries:
-- Email: dpo@complyo.com
+- Email: dpo@complyo.co
 - Data Protection Officer: Complyo DPO Team
 
 ---
@@ -445,7 +445,7 @@ You can stop receiving SMS messages at any time by:
 - Disable SMS notifications
 
 **Option 3: Contact Support**
-- Email: support@complyo.com
+- Email: support@complyo.co
 - Phone: [Support Number]
 
 ### 5.2 Confirmation
@@ -461,8 +461,8 @@ To start receiving messages again after opting out:
 ### 6.1 Get Help
 For assistance with SMS messages:
 - Reply **HELP** to any Complyo message
-- Email: support@complyo.com
-- Visit: https://complyo.com/support
+- Email: support@complyo.co
+- Visit: https://complyo.co/support
 
 ### 6.2 Support Response
 You will receive help information including:
@@ -540,7 +540,7 @@ Simply follow the opt-out instructions in Section 5.
 ## 12. Questions and Contact
 
 For questions about SMS consent:
-- **Email:** sms-consent@complyo.com
+- **Email:** sms-consent@complyo.co
 - **Phone:** [Support Number]
 - **Mail:** Complyo SMS Team, [Address]
 
@@ -554,7 +554,7 @@ For questions about SMS consent:
  You can opt out at any time by texting STOP
  Consent is not required to use Complyo services
 
-**For help:** Text HELP or email support@complyo.com
+**For help:** Text HELP or email support@complyo.co
 **To stop:** Text STOP or disable in account settings
 
 *Last Updated: ${new Date().toLocaleDateString()}*`,
@@ -805,9 +805,9 @@ Under privacy laws (GDPR, CCPA, etc.), you have the right to:
 
 For questions about our use of cookies:
 
-**Email:** cookies@complyo.com
-**Privacy Team:** privacy@complyo.com
-**Website:** https://complyo.com/cookies
+**Email:** cookies@complyo.co
+**Privacy Team:** privacy@complyo.co
+**Website:** https://complyo.co/cookies
 **Mail:** Complyo Privacy Team, [Address]
 
 ---
@@ -985,7 +985,7 @@ You can revoke support access at any time:
 
 **Immediate Revocation:**
 - Settings > Privacy > Support Access > Revoke Now
-- Email: support@complyo.com with "Revoke Access"
+- Email: support@complyo.co with "Revoke Access"
 - Reply "REVOKE" to any support communication
 
 **Permanent Opt-Out:**
@@ -1087,9 +1087,9 @@ Contact us immediately if you believe:
 
 ### 13.2 How to Report
 
-**Email:** privacy@complyo.com
+**Email:** privacy@complyo.co
 **Subject:** "Support Access Concern"
-**Escalation:** dpo@complyo.com (Data Protection Officer)
+**Escalation:** dpo@complyo.co (Data Protection Officer)
 
 We will investigate within 5 business days and respond with findings and actions taken.
 
@@ -1118,11 +1118,11 @@ Changes will be communicated via:
 
 For questions about support access:
 
-**General Support:** support@complyo.com
-**Privacy Questions:** privacy@complyo.com
-**Data Protection Officer:** dpo@complyo.com
+**General Support:** support@complyo.co
+**Privacy Questions:** privacy@complyo.co
+**Data Protection Officer:** dpo@complyo.co
 **Phone:** [Support Number]
-**Website:** https://complyo.com/support-access
+**Website:** https://complyo.co/support-access
 
 ---
 

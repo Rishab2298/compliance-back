@@ -600,7 +600,7 @@ export const sendDocumentUploadNotificationEmail = async ({
               <div class="footer">
                 <p class="footer-text">
                   Access your dashboard at:
-                  <a href="${process.env.FRONTEND_URL || 'https://complyo.io'}/client/dashboard" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.io'}</a>
+                  <a href="${process.env.FRONTEND_URL || 'https://complyo.co'}/client/dashboard" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.co'}</a>
                 </p>
                 <p class="footer-text">
                   This is an automated notification from your ${companyName} compliance system.
@@ -887,7 +887,7 @@ export const sendWelcomeEmail = async ({
               <!-- Footer -->
               <div class="footer">
                 <p class="footer-text">
-                  <strong>Need help?</strong> Contact support at <a href="mailto:support@complyo.io" class="footer-link">support@complyo.io</a>
+                  <strong>Need help?</strong> Contact support at <a href="mailto:support@complyo.co" class="footer-link">support@complyo.co</a>
                 </p>
                 <p class="footer-text">
                   You're receiving this email because you recently completed onboarding for Complyo.
@@ -1189,7 +1189,7 @@ export const sendTeamInvitationEmail = async ({
               <div class="footer">
                 <p class="footer-text">
                   Once you've set your password, you can log in at:
-                  <a href="${process.env.FRONTEND_URL || 'https://complyo.io'}" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.io'}</a>
+                  <a href="${process.env.FRONTEND_URL || 'https://complyo.co'}" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.co'}</a>
                 </p>
                 <p class="footer-text">
                   Questions? Contact your team administrator at <strong>${companyName}</strong>.

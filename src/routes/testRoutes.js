@@ -429,7 +429,7 @@ router.get('/team-invitation-preview', (_req, res) => {
           <div class="footer">
             <p class="footer-text">
               Once you've set your password, you can log in at:
-              <a href="${process.env.FRONTEND_URL || 'https://complyo.io'}" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.io'}</a>
+              <a href="${process.env.FRONTEND_URL || 'https://complyo.co'}" class="footer-link">${process.env.FRONTEND_URL || 'https://complyo.co'}</a>
             </p>
             <p class="footer-text">
               Questions? Contact your team administrator at <strong>${companyName}</strong>.
@@ -457,7 +457,7 @@ router.get('/welcome-preview', (_req, res) => {
   // Sample data for preview
   const firstName = 'Sarah';
   const companyName = 'Acme Transportation';
-  const dashboardUrl = process.env.FRONTEND_URL || 'https://complyo.io/dashboard';
+  const dashboardUrl = process.env.FRONTEND_URL || 'https://complyo.co/dashboard';
 
   // Return the HTML template directly
   const html = `
@@ -669,7 +669,7 @@ router.get('/welcome-preview', (_req, res) => {
           <!-- Footer -->
           <div class="footer">
             <p class="footer-text">
-              <strong>Need help?</strong> Contact support at <a href="mailto:support@complyo.io" class="footer-link">support@complyo.io</a>
+              <strong>Need help?</strong> Contact support at <a href="mailto:support@complyo.co" class="footer-link">support@complyo.co</a>
             </p>
             <p class="footer-text">
               You're receiving this email because you recently completed onboarding for Complyo.
