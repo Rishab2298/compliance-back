@@ -175,7 +175,7 @@ export const buyCredits = async (req, res) => {
     // Calculate credits for display
     const creditsAmount = amount * 8;
 
-    // Create Stripe checkout session
+    // Create Stripe checkout sessions
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const session = await createCreditPurchaseCheckout(
       user.companyAdmin.id,
